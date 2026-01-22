@@ -44,17 +44,18 @@ integer    = Token.integer    lexer -- parses an integer
 semi       = Token.semi       lexer -- parses a semicolon
 whiteSpace = Token.whiteSpace lexer -- parses whitespace
 
-concatStms :: [Stm] -> Stm
-concatStms [] = Skip
-concatStms [x] = x
-concatStms (x : xs) = Concat (x : xs)
-
 -- Main parser
-mainParser :: Parser [Stm]
+mainParser :: Parser Stm
 mainParser = whiteSpace >> statement
 
-statement :: Parser [Stm]
-statement = sepBy1 statement' semi
+statement :: Parser Stm
+statement = do
+            stm <- sepBy1 statement' semi
+            if null stm
+              then return Skip
+              else if length stm == 1
+                then return $ head stm
+                else return $ Concat stm
 
 statement' :: Parser Stm
 statement' = whileParser
@@ -86,7 +87,7 @@ ifParser = do
                 reserved "else"
                 stm2 <- statement <?> "statement after 'else'"
                 reserved "fi" <?> "fi keyword"
-                return $ If cond (concatStms stm1) (concatStms stm2)
+                return $ If cond stm1 stm2
 
 whileParser :: Parser Stm
 whileParser = do
@@ -95,7 +96,7 @@ whileParser = do
                 reserved "do" <?> "do keyword"
                 stm <- statement <?> "statement after 'do'"
                 reserved "done" <?> "done keyword"
-                return $ While cond (concatStms stm)
+                return $ While cond stm
 
 skipParser :: Parser Stm
 skipParser = do
@@ -124,14 +125,14 @@ aTerm =  fmap Var identifier
      <?> "arithmetic expression"
 
 rExpression =
-  do 
+  do
     aexp <- aExpParser
     op <- relation
     aexp2 <- aExpParser
     case aexp2
      of (ConstantRange 0 0) -> return $ op aexp (ConstantRange 0 0)
-        _ -> error("invalid comparison")
-    
+        _ -> error ("invalid comparison")
+
 
 relation =   (reservedOp "=" >> return Equal)
          <|> (reservedOp "<" >> return Smaller)
@@ -141,13 +142,13 @@ relation =   (reservedOp "=" >> return Equal)
          <|> (reservedOp "<>" >> return Different)
          <?> "relational operator"
 
-parseString :: String -> Either String [Stm]
+parseString :: String -> Either String Stm
 parseString str =
   case parse (mainParser <* spaces <* eof) "" str of
     Left e  -> Left (show e)
     Right r -> Right r
 
-parseFile :: String -> IO (Either String [Stm])
+parseFile :: String -> IO (Either String Stm)
 parseFile file =
   do program  <- readFile file
      case parse (mainParser <* spaces <* eof) "" program of

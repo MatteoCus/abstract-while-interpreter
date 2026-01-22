@@ -18,43 +18,41 @@ type Arc = (Label, Command, Label)
 
 type Graph = ([Label], Label, Label, [Arc])
 
-buildCFG :: [Stm] -> Graph -> Label -> Graph
-buildCFG [] graph _ = graph
-buildCFG (x : xs) graph label = buildCFG xs newGraph exit
-                                where newGraph@(_, _, exit, _) = buildCFG' x graph label
-
 
 -- Updates the graph adding labels and arcs related to the involved statement
-buildCFG' :: Stm -> Graph -> Label -> Graph
+buildCFG :: Stm -> Graph -> Label -> Graph
 
-buildCFG' Skip graph _ = graph
+buildCFG Skip graph _ = graph
 
-buildCFG' (Assign var expr) (labels, entry, exit, arcs) label = do
+buildCFG (Assign var expr) (labels, entry, exit, arcs) label = do
     let (newLabels, newEntry, newExit, newArcs) = updateLabelsSingle (labels, entry, exit, arcs)
     let newArc = (label, CAssign var expr, newExit)
     (newLabels, newEntry, newExit, newArc : newArcs)
 
-buildCFG' (Concat stms) graph label = buildCFG stms graph label
+buildCFG (Concat []) graph _ = graph
 
-buildCFG' (If comparison stm1 stm2) (labels, entry, exit, arcs) label = do
+buildCFG (Concat (x : xs)) graph label = buildCFG (Concat xs) newGraph exit
+                                where newGraph@(_, _, exit, _) = buildCFG x graph label
+
+buildCFG (If comparison stm1 stm2) (labels, entry, exit, arcs) label = do
                                                                         let (newLabels, newEntry, _, newArcs) = updateLabelsDouble (labels, entry, exit, arcs) label
                                                                         let thenLabel = head $ tail newLabels
                                                                         let elseLabel = head newLabels
                                                                         let thenArc = (label, translateComparisonCommand comparison, thenLabel)
                                                                         let elseArc = (label, translateComparisonCommand $ oppositeComparison comparison, elseLabel)
                                                                         let thenGraphStart = (newLabels, newEntry, thenLabel, elseArc : thenArc : newArcs)
-                                                                        let (thenLabels, thenEntry, thenExit, thenArcs) = buildCFG' stm1 thenGraphStart thenLabel
-                                                                        let twoExitsGraph = buildCFG' stm2 (thenLabels, thenEntry, elseLabel, thenArcs) elseLabel
+                                                                        let (thenLabels, thenEntry, thenExit, thenArcs) = buildCFG stm1 thenGraphStart thenLabel
+                                                                        let twoExitsGraph = buildCFG stm2 (thenLabels, thenEntry, elseLabel, thenArcs) elseLabel
                                                                         reconnectBranches twoExitsGraph thenExit
 
-buildCFG' (While comparison stm) (labels, entry, exit, arcs) label = do
+buildCFG (While comparison stm) (labels, entry, exit, arcs) label = do
                                                                         let (newLabels, newEntry, _, newArcs) = updateLabelsDouble (labels, entry, exit, arcs) label
                                                                         let bodyLabel = head $ tail newLabels
                                                                         let exitLabel = head newLabels
                                                                         let bodyArc = (label, translateComparisonCommand comparison, bodyLabel)
                                                                         let exitArc = (label, translateComparisonCommand $ oppositeComparison comparison, exitLabel)
                                                                         let bodyGraphStart = (newLabels, newEntry, bodyLabel, exitArc : bodyArc : newArcs)
-                                                                        let openWhileGraph = buildCFG' stm bodyGraphStart bodyLabel
+                                                                        let openWhileGraph = buildCFG stm bodyGraphStart bodyLabel
                                                                         let (whileLabels, whileEntry, _, whileArcs) = reconnectBranches openWhileGraph exit
                                                                         (whileLabels, whileEntry, exitLabel, whileArcs)
 
