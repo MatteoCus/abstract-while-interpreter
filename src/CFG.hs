@@ -36,59 +36,43 @@ buildCFG' (Assign var expr) (labels, entry, exit, arcs) label = do
 
 buildCFG' (Concat stms) graph label = buildCFG stms graph label
 
-buildCFG' (If comp stm1 stm2) (labels, entry, exit, arcs) label =
-                                        case comp
-                                        of  (Equal aExp1 aExp2) -> do
-                                                                    let (newLabels, newEntry, _, newArcs) = updateLabelsDouble (labels, entry, exit, arcs) label
-                                                                    let thenArc = (label, CEqual aExp1 aExp2, head (tail newLabels))
-                                                                    let elseArc = (label, CDifferent aExp1 aExp2, head newLabels)
-                                                                    let thenGraphStart = (newLabels, newEntry, head (tail newLabels), elseArc : thenArc : newArcs)
-                                                                    let (thenLabels, thenEntry, thenExit, thenArcs) = buildCFG' stm1 thenGraphStart (head (tail newLabels))
-                                                                    let twoExitsGraph = buildCFG' stm2 (thenLabels, thenEntry, head newLabels, thenArcs) (head newLabels)
-                                                                    reconnectBranches twoExitsGraph thenExit
-                                            (Different aExp1 aExp2) -> do
-                                                                    let (newLabels, newEntry, _, newArcs) = updateLabelsDouble (labels, entry, exit, arcs) label
-                                                                    let thenArc = (label, CDifferent aExp1 aExp2, head (tail newLabels))
-                                                                    let elseArc = (label, CEqual aExp1 aExp2, head newLabels)
-                                                                    let thenGraph = (newLabels, newEntry, head (tail newLabels), elseArc : thenArc : newArcs)
-                                                                    let (thenLabels, thenEntry, thenExit, thenArcs) = buildCFG' stm1 thenGraph (head (tail newLabels))
-                                                                    let twoExitsGraph = buildCFG' stm2 (thenLabels, thenEntry, head newLabels, thenArcs) (head newLabels)
-                                                                    reconnectBranches twoExitsGraph thenExit
-                                            (Greater aExp1 aExp2) -> do
-                                                                    let (newLabels, newEntry, _, newArcs) = updateLabelsDouble (labels, entry, exit, arcs) label
-                                                                    let thenArc = (label, CGreater aExp1 aExp2, head (tail newLabels))
-                                                                    let elseArc = (label, CSmallerOrEqual aExp1 aExp2, head newLabels)
-                                                                    let thenGraph = (newLabels, newEntry, head (tail newLabels), elseArc : thenArc : newArcs)
-                                                                    let (thenLabels, thenEntry, thenExit, thenArcs) = buildCFG' stm1 thenGraph (head (tail newLabels))
-                                                                    let twoExitsGraph = buildCFG' stm2 (thenLabels, thenEntry, head newLabels, thenArcs) (head newLabels)
-                                                                    reconnectBranches twoExitsGraph thenExit
-                                            (GreaterOrEqual aExp1 aExp2) -> do
-                                                                    let (newLabels, newEntry, _, newArcs) = updateLabelsDouble (labels, entry, exit, arcs) label
-                                                                    let thenArc = (label, CGreaterOrEqual aExp1 aExp2, head (tail newLabels))
-                                                                    let elseArc = (label, CSmaller aExp1 aExp2, head newLabels)
-                                                                    let thenGraph = (newLabels, newEntry, head (tail newLabels), elseArc : thenArc : newArcs)
-                                                                    let (thenLabels, thenEntry, thenExit, thenArcs) = buildCFG' stm1 thenGraph (head (tail newLabels))
-                                                                    let twoExitsGraph = buildCFG' stm2 (thenLabels, thenEntry, head newLabels, thenArcs) (head newLabels)
-                                                                    reconnectBranches twoExitsGraph thenExit
-                                            (Smaller aExp1 aExp2) -> do
-                                                                    let (newLabels, newEntry, _, newArcs) = updateLabelsDouble (labels, entry, exit, arcs) label
-                                                                    let thenArc = (label, CSmaller aExp1 aExp2, head (tail newLabels))
-                                                                    let elseArc = (label, CGreaterOrEqual aExp1 aExp2, head newLabels)
-                                                                    let thenGraph = (newLabels, newEntry, head (tail newLabels), elseArc : thenArc : newArcs)
-                                                                    let (thenLabels, thenEntry, thenExit, thenArcs) = buildCFG' stm1 thenGraph (head (tail newLabels))
-                                                                    let twoExitsGraph = buildCFG' stm2 (thenLabels, thenEntry, head newLabels, thenArcs) (head newLabels)
-                                                                    reconnectBranches twoExitsGraph thenExit
-                                            (SmallerOrEqual aExp1 aExp2) -> do
-                                                                    let (newLabels, newEntry, _, newArcs) = updateLabelsDouble (labels, entry, exit, arcs) label
-                                                                    let thenArc = (label, CSmallerOrEqual aExp1 aExp2, head (tail newLabels))
-                                                                    let elseArc = (label, CGreater aExp1 aExp2, head newLabels)
-                                                                    let thenGraph = (newLabels, newEntry, head (tail newLabels), elseArc : thenArc : newArcs)
-                                                                    let (thenLabels, thenEntry, thenExit, thenArcs) = buildCFG' stm1 thenGraph (head (tail newLabels))
-                                                                    let twoExitsGraph = buildCFG' stm2 (thenLabels, thenEntry, head newLabels, thenArcs) (head newLabels)
-                                                                    reconnectBranches twoExitsGraph thenExit
+buildCFG' (If comparison stm1 stm2) (labels, entry, exit, arcs) label = do
+                                                                        let (newLabels, newEntry, _, newArcs) = updateLabelsDouble (labels, entry, exit, arcs) label
+                                                                        let thenLabel = head $ tail newLabels
+                                                                        let elseLabel = head newLabels
+                                                                        let thenArc = (label, translateComparisonCommand comparison, thenLabel)
+                                                                        let elseArc = (label, translateComparisonCommand $ oppositeComparison comparison, elseLabel)
+                                                                        let thenGraphStart = (newLabels, newEntry, thenLabel, elseArc : thenArc : newArcs)
+                                                                        let (thenLabels, thenEntry, thenExit, thenArcs) = buildCFG' stm1 thenGraphStart thenLabel
+                                                                        let twoExitsGraph = buildCFG' stm2 (thenLabels, thenEntry, elseLabel, thenArcs) elseLabel
+                                                                        reconnectBranches twoExitsGraph thenExit
 
-buildCFG' _ (labels, entry, exit, arcs) _ = (labels, entry, exit, arcs)
+buildCFG' (While comparison stm) (labels, entry, exit, arcs) label = do
+                                                                        let (newLabels, newEntry, _, newArcs) = updateLabelsDouble (labels, entry, exit, arcs) label
+                                                                        let bodyLabel = head $ tail newLabels
+                                                                        let exitLabel = head newLabels
+                                                                        let bodyArc = (label, translateComparisonCommand comparison, bodyLabel)
+                                                                        let exitArc = (label, translateComparisonCommand $ oppositeComparison comparison, exitLabel)
+                                                                        let bodyGraphStart = (newLabels, newEntry, bodyLabel, exitArc : bodyArc : newArcs)
+                                                                        let openWhileGraph = buildCFG' stm bodyGraphStart bodyLabel
+                                                                        let (whileLabels, whileEntry, _, whileArcs) = reconnectBranches openWhileGraph exit
+                                                                        (whileLabels, whileEntry, exitLabel, whileArcs)
 
+oppositeComparison :: Comparison -> Comparison
+oppositeComparison (Equal exp1 exp2) = Different exp1 exp2
+oppositeComparison (Different exp1 exp2) = Equal exp1 exp2
+oppositeComparison (Smaller exp1 exp2) = GreaterOrEqual exp1 exp2
+oppositeComparison (GreaterOrEqual exp1 exp2) = Smaller exp1 exp2
+oppositeComparison (Greater exp1 exp2) = SmallerOrEqual exp1 exp2
+oppositeComparison (SmallerOrEqual exp1 exp2) = Greater exp1 exp2
+
+translateComparisonCommand :: Comparison -> Command
+translateComparisonCommand (Equal exp1 exp2) = CEqual exp1 exp2
+translateComparisonCommand (Different exp1 exp2) = CDifferent exp1 exp2
+translateComparisonCommand (Smaller exp1 exp2) = CSmaller exp1 exp2
+translateComparisonCommand (GreaterOrEqual exp1 exp2) = CGreaterOrEqual exp1 exp2
+translateComparisonCommand (Greater exp1 exp2) = CGreater exp1 exp2
+translateComparisonCommand (SmallerOrEqual exp1 exp2) = CSmallerOrEqual exp1 exp2
 
 -- Updates the graph adding a new label: the newly created label is also the new "exit" label
 updateLabelsSingle :: Graph -> Graph
@@ -110,18 +94,14 @@ updateLabelsDouble (labels, entry, _, arcs) oldLabel = do
 reconnectBranches :: Graph -> Label -> Graph
 reconnectBranches (elseLabels, elseEntry, elseExit, elseArcs) thenExit = do
     let newLabels = filter (/= elseExit) elseLabels
-
     let foundArcsToUpdate = filter (\(_,_,exitLab) -> exitLab == elseExit) elseArcs
-
     let updatedArcs = arcUpdate foundArcsToUpdate thenExit
-
     let newArcs = filter (\(_,_,exitLab) -> exitLab /= elseExit) elseArcs
-
     (newLabels, elseEntry, thenExit, updatedArcs ++ newArcs)
 
 arcUpdate :: [Arc] -> Label -> [Arc]
 arcUpdate [] _ = []
-arcUpdate (x : xs) newExit = (arcUpdate' x newExit ): arcUpdate xs newExit
+arcUpdate (x : xs) newExit = (arcUpdate' x newExit): arcUpdate xs newExit
 
 arcUpdate' :: Arc -> Label -> Arc
 arcUpdate' (oldElseEntryLab, oldCommand, _) newExit = (oldElseEntryLab, oldCommand, newExit)
