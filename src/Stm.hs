@@ -4,6 +4,6 @@ import Exp
 data Stm = Assign String AExp
         | Skip
         | Concat [Stm]
-        | If BExp Stm Stm
-        | While BExp Stm
+        | If Comparison Stm Stm
+        | While Comparison Stm
         deriving (Show)

@@ -27,7 +27,6 @@ library
   exposed-modules:
       AbstractDomain
       CFG
-      ConcreteInterpreter
       Exp
       IntervalDomain
       Parser

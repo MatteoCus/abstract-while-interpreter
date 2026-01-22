@@ -1,6 +1,6 @@
-module Exp (AExp (..), BExp (..)) where
+module Exp (AExp (..), Comparison (..)) where
     data AExp = Var String
-                | AConstant Integer
+                | ConstantRange Integer Integer
                 | Neg AExp
                 | Sum AExp AExp
                 | Sub AExp AExp
@@ -8,6 +8,10 @@ module Exp (AExp (..), BExp (..)) where
                 | Div AExp AExp
             deriving (Show)
 
-    data BExp =   Equal AExp AExp
-                | SmallerOrEqual AExp AExp
-            deriving (Show)
+    data Comparison = Equal AExp AExp
+                        | Smaller AExp AExp
+                        | SmallerOrEqual AExp AExp
+                        | Greater AExp AExp
+                        | GreaterOrEqual AExp AExp
+                        | Different AExp AExp
+                        deriving (Show)

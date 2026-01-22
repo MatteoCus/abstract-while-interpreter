@@ -1,8 +1,14 @@
 // computes the factorial of x (144) and saves the result in y
 
-x := 144;
-y := 1;
+x := 0;
+y := 0;
 
-while !(x = 1) do (
-  y := y*x; x := x-1
-)
+if x = 0
+    then 
+        if y = 0
+            then y := y+1
+            else y := y-1
+        fi
+    else 
+        x := x-1
+fi
