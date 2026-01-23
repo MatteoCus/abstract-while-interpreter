@@ -1,7 +1,7 @@
 module Main (main) where
 
 import Parser
-import CFG (buildCFG)
+import CFG (buildCFG, findLoopLabels)
 -- import Data.Map (Map)
 -- import qualified Data.Map as Map
 -- import IntervalDomain (Interval (..), AbstractDomain (..), Infinitable (..))
@@ -30,5 +30,8 @@ main = do
                    Right ast -> do putStrLn "Success!"
                                    print ast
                                    print ""
+                                   let graph = buildCFG ast ([],0,0,[]) 0
                                    print (buildCFG ast ([],0,0,[]) 0)
                                    print ""
+                                   print "Loop labels: "
+                                   print (findLoopLabels graph [] [])

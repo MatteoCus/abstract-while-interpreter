@@ -1,7 +1,7 @@
-module CFG (buildCFG )where
+module CFG (buildCFG, findLoopLabels)where
 import Exp (AExp, Comparison (..))
 import Stm (Stm (..))
-import Data.List (find)
+import Data.List (find, sort)
 
 data Command = CAssign String AExp
                 | CEqual AExp AExp
@@ -103,3 +103,23 @@ arcUpdate (x : xs) newExit = (arcUpdate' x newExit): arcUpdate xs newExit
 
 arcUpdate' :: Arc -> Label -> Arc
 arcUpdate' (oldElseEntryLab, oldCommand, _) newExit = (oldElseEntryLab, oldCommand, newExit)
+
+findLoopLabels :: Graph -> [Label] -> [Label] -> [Label]
+findLoopLabels (_, _, _, []) _ _= []
+findLoopLabels ([], _, _, _) _ _= []
+findLoopLabels (labels, en, ex, arcs) foundLabels alreadyExamined
+    | en `elem` foundLabels = foundLabels
+    | en `elem` alreadyExamined = foundLabels
+    | (sort labels) == (sort alreadyExamined) = foundLabels
+    | otherwise = if any (findLoopLabels' arcs alreadyExamined en) nextLabels
+                                                        then concatMap (\x -> findLoopLabels (labels, x, ex, arcs) (en:foundLabels) (en:alreadyExamined)) nextLabels
+                                                        else concatMap (\x -> findLoopLabels (labels, x, ex, arcs) foundLabels (en:alreadyExamined)) nextLabels
+                                                        where nextLabels = map (\(_,_,t) -> t) (filter (\(entry,_,_) -> entry == en) arcs)
+
+
+findLoopLabels' :: [Arc] -> [Label] -> Label -> Label -> Bool
+findLoopLabels' [] _ _ _= False
+findLoopLabels' arcs alreadyExploredLabels toFindLabel actualLabel
+    | actualLabel `elem` alreadyExploredLabels = False -- already explored node, not found
+    | actualLabel == toFindLabel = True                                           -- found node
+    | otherwise = any (findLoopLabels' arcs (actualLabel : alreadyExploredLabels) toFindLabel . (\(_,_,t) -> t)) (filter (\(en,_, _) -> en == actualLabel) arcs)
