@@ -123,3 +123,9 @@ findLoopLabels' arcs alreadyExploredLabels toFindLabel actualLabel
     | actualLabel `elem` alreadyExploredLabels = False -- already explored node, not found
     | actualLabel == toFindLabel = True                                           -- found node
     | otherwise = any (findLoopLabels' arcs (actualLabel : alreadyExploredLabels) toFindLabel . (\(_,_,t) -> t)) (filter (\(en,_, _) -> en == actualLabel) arcs)
+
+arcsTo :: [Arc] -> Label -> [Arc]
+arcsTo arcs exitLabel = filter (\(_,_,exit) -> exit == exitLabel) arcs
+
+arcsFrom :: [Arc] -> Label -> [Arc]
+arcsFrom arcs entryLabel = filter (\(entry,_,_) -> entry == entryLabel) arcs
