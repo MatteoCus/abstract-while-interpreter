@@ -1,4 +1,4 @@
-module CFG (buildCFG, findLoopLabels)where
+module CFG (buildCFG, findLoopLabels, Command (..))where
 import Exp (AExp, Comparison (..))
 import Stm (Stm (..))
 import Data.List (find, sort)

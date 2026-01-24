@@ -1,8 +1,9 @@
+{-# LANGUAGE InstanceSigs #-}
 module IntervalDomain (Interval (..), AbstractDomain (..), Infinitable (..), divide) where
 
 import AbstractDomain (AbstractDomain (..))
 
-divide :: Infinitable Int -> Infinitable Int -> Infinitable Int
+divide :: Infinitable Integer -> Infinitable Integer -> Infinitable Integer
 (Regular 0) `divide` (Regular 0) = Regular 0
 (Regular x) `divide` (Regular 0)
     | x > 0 = PositiveInfinity
@@ -21,7 +22,7 @@ PositiveInfinity `divide` (Regular x)
 data Integral a => Infinitable a = Regular a | NegativeInfinity | PositiveInfinity
     deriving (Show, Eq)
 
-data Interval = Empty | Interval (Infinitable Int) (Infinitable Int)
+data Interval = Empty | Interval (Infinitable Integer) (Infinitable Integer)
     deriving (Show, Eq)
 
 instance (Integral a) => Num (Infinitable a) where
@@ -126,4 +127,14 @@ instance AbstractDomain Interval where
         | mxm2 <= -1 = Interval (min (mxm1 `divide` mnm2) (mxm1 `divide` mxm2)) (max (mnm1 `divide` mnm2) (mnm1 `divide` mxm2))
         | otherwise = lub [(Interval mnm1 mxm1) AbstractDomain./ glb [(Interval mnm2 mxm2), (Interval (Regular 1) PositiveInfinity)], (Interval mnm1 mxm1) AbstractDomain./ glb [(Interval mnm2 mxm2), (Interval NegativeInfinity (Regular (-1)))]]
 
+    Empty ∇ interv = interv
+    interv ∇ Empty = interv
+    (Interval a b) ∇ (Interval c d) = Interval widenedLower widenedUpper
+                                        where widenedLower = if a <= c then a else NegativeInfinity
+                                              widenedUpper = if b >= d then b else PositiveInfinity
 
+    Empty △ _ = Empty
+    _ △ Empty = Empty
+    (Interval a b) △ (Interval c d) = Interval narrowedLower narrowedUpper
+                                        where narrowedLower = if a == NegativeInfinity then c else a
+                                              narrowedUpper = if b == PositiveInfinity then d else b
