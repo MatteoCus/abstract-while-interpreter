@@ -1,6 +1,9 @@
 module Exp (AExp (..), Comparison (..)) where
-    data AExp = Var String
-                | ConstantRange Integer Integer
+
+import IntervalDomain (Infinitable (..))
+
+data AExp = Var String
+                | ConstantRange (Infinitable Integer) (Infinitable Integer)
                 | Neg AExp
                 | Sum AExp AExp
                 | Sub AExp AExp
@@ -8,7 +11,7 @@ module Exp (AExp (..), Comparison (..)) where
                 | Div AExp AExp
             deriving (Show)
 
-    data Comparison = Equal AExp AExp
+data Comparison = Equal AExp AExp
                         | Smaller AExp AExp
                         | SmallerOrEqual AExp AExp
                         | Greater AExp AExp

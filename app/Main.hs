@@ -2,6 +2,7 @@ module Main (main) where
 
 import Parser
 import CFG (buildCFG, findLoopLabels)
+import AbstractInterpreter (interpret)
 -- import Data.Map (Map)
 -- import qualified Data.Map as Map
 -- import IntervalDomain (Interval (..), AbstractDomain (..), Infinitable (..))
@@ -33,5 +34,5 @@ main = do
                                    let graph = buildCFG ast ([],0,0,[]) 0
                                    print (buildCFG ast ([],0,0,[]) 0)
                                    print ""
-                                   print "Loop labels: "
-                                   print (findLoopLabels graph [] [])
+                                   print "Interpretation: "
+                                   print (interpret graph)

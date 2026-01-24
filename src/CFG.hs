@@ -1,4 +1,4 @@
-module CFG (buildCFG, findLoopLabels, Command (..))where
+module CFG (buildCFG, findLoopLabels, Command (..), Label, Graph, arcsTo, Arc)where
 import Exp (AExp, Comparison (..))
 import Stm (Stm (..))
 import Data.List (find, sort)
@@ -124,8 +124,8 @@ findLoopLabels' arcs alreadyExploredLabels toFindLabel actualLabel
     | actualLabel == toFindLabel = True                                           -- found node
     | otherwise = any (findLoopLabels' arcs (actualLabel : alreadyExploredLabels) toFindLabel . (\(_,_,t) -> t)) (filter (\(en,_, _) -> en == actualLabel) arcs)
 
-arcsTo :: [Arc] -> Label -> [Arc]
-arcsTo arcs exitLabel = filter (\(_,_,exit) -> exit == exitLabel) arcs
+arcsTo :: Label -> [Arc] -> [Arc]
+arcsTo exitLabel arcs = filter (\(_,_,exit) -> exit == exitLabel) arcs
 
-arcsFrom :: [Arc] -> Label -> [Arc]
-arcsFrom arcs entryLabel = filter (\(entry,_,_) -> entry == entryLabel) arcs
+arcsFrom :: Label -> [Arc]  -> [Arc]
+arcsFrom entryLabel arcs = filter (\(entry,_,_) -> entry == entryLabel) arcs

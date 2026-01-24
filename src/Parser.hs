@@ -10,6 +10,7 @@ import qualified Text.ParserCombinators.Parsec.Token as Token
 import qualified Data.Functor.Identity
 import Stm (Stm (..))
 import Exp (AExp (..), Comparison (..))
+import IntervalDomain (Infinitable(..))
 
 languageDef :: GenLanguageDef String u Data.Functor.Identity.Identity
 languageDef =
@@ -71,12 +72,12 @@ constantRange = do
     reserved ","
     up <- integer
     reserved "]"
-    return $ ConstantRange low up
+    return $ ConstantRange (Regular low) (Regular up)
 
 constantRangeSingle :: Parser AExp
 constantRangeSingle = do
     val <- integer
-    return $ ConstantRange val val
+    return $ ConstantRange (Regular val) (Regular val)
 
 ifParser :: Parser Stm
 ifParser = do
