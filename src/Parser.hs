@@ -132,7 +132,7 @@ rExpression =
     aexp2 <- aExpParser
     case aexp2
      of (ConstantRange 0 0) -> return $ op aexp (ConstantRange 0 0)
-        _ -> error ("invalid comparison")
+        _ -> error "comparison must be against 0"
 
 
 relation =   (reservedOp "=" >> return Equal)

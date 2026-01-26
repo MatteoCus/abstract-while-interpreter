@@ -27,10 +27,13 @@ library
   exposed-modules:
       AbstractDomain
       AbstractInterpreter
+      AbstractInterpreter.State
       CFG
+      CFG.Types
       Exp
       IntervalDomain
       Parser
+      PrettyPrint
       Stm
   other-modules:
       Paths_abstract_interpreter

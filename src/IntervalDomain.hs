@@ -3,6 +3,13 @@ module IntervalDomain (Interval (..), AbstractDomain (..), Infinitable (..), div
 
 import AbstractDomain (AbstractDomain (..))
 
+-- Definitions for custom interval abstract domain
+data Integral a => Infinitable a = Regular a | NegativeInfinity | PositiveInfinity
+    deriving (Show, Eq)
+
+data Interval = Empty | Interval (Infinitable Integer) (Infinitable Integer)
+    deriving (Show, Eq)
+
 divide :: Infinitable Integer -> Infinitable Integer -> Infinitable Integer
 (Regular 0) `divide` (Regular 0) = Regular 0
 (Regular x) `divide` (Regular 0)
@@ -17,13 +24,6 @@ PositiveInfinity `divide` (Regular x)
     | x >= 0 = PositiveInfinity
     | otherwise = NegativeInfinity
 (Regular x) `divide` (Regular y) = Regular (x `div` y)
-
--- Definitions for custom interval abstract domain
-data Integral a => Infinitable a = Regular a | NegativeInfinity | PositiveInfinity
-    deriving (Show, Eq)
-
-data Interval = Empty | Interval (Infinitable Integer) (Infinitable Integer)
-    deriving (Show, Eq)
 
 instance (Integral a) => Num (Infinitable a) where
     NegativeInfinity + _ = NegativeInfinity
@@ -62,7 +62,7 @@ instance (Integral a) => Num (Infinitable a) where
     signum PositiveInfinity = Regular 1
     signum (Regular a) = Regular (signum a)
 
-    fromInteger n = Regular 0
+    fromInteger n = Regular (fromIntegral n)
 
     negate NegativeInfinity = PositiveInfinity
     negate PositiveInfinity = NegativeInfinity
@@ -89,19 +89,20 @@ instance AbstractDomain Interval where
     (⊥) = Empty
     (⊤) = Interval NegativeInfinity PositiveInfinity
 
-    lub [] = (⊥)
-    lub (Empty : xs) = lub xs
-    lub ((Interval mnm mxm) : xs) = case lub xs
-                                    of  Empty -> Interval mnm mxm
-                                        Interval mn mx -> Interval (min mnm mn) (max mxm mx)
+    lub Empty Empty = (⊥)
+    lub Empty  interval =  interval
+    lub interval Empty =  interval
+    lub (Interval mnm1 mxm1) (Interval mnm2 mxm2) = Interval (min mnm1 mnm2) (max mxm1 mxm2)
 
-    glb [] = (⊤)
-    glb (Empty : _) = Empty
-    glb ((Interval mnm mxm) : xs) = case glb xs
-                                    of  Empty -> Empty
-                                        Interval mn mx -> if max mnm mn > min mxm mx
+    glb Empty Empty = (⊤)
+    glb Empty _ = (⊥)
+    glb _ Empty = (⊥)
+    glb (Interval mnm1 mxm1) (Interval mnm2 mxm2) = if newMin > newMax
                                                           then Empty
-                                                          else Interval (max mnm mn) (min mxm mx)
+                                                          else Interval newMin newMax
+                                                    where newMin = max mnm1 mnm2
+                                                          newMax = min mxm1 mxm2
+
 
     Empty + _ = Empty
     _ + Empty = Empty
@@ -125,7 +126,7 @@ instance AbstractDomain Interval where
     (Interval mnm1 mxm1) / (Interval mnm2 mxm2)
         | mnm2 >= 1 = Interval (min (mnm1 `divide` mnm2) (mnm1 `divide` mxm2)) (max (mxm1 `divide` mnm2) (mxm1 `divide` mxm2))
         | mxm2 <= -1 = Interval (min (mxm1 `divide` mnm2) (mxm1 `divide` mxm2)) (max (mnm1 `divide` mnm2) (mnm1 `divide` mxm2))
-        | otherwise = lub [(Interval mnm1 mxm1) AbstractDomain./ glb [(Interval mnm2 mxm2), (Interval (Regular 1) PositiveInfinity)], (Interval mnm1 mxm1) AbstractDomain./ glb [(Interval mnm2 mxm2), (Interval NegativeInfinity (Regular (-1)))]]
+        | otherwise = lub (Interval mnm1 mxm1 AbstractDomain./ glb (Interval mnm2 mxm2) (Interval (Regular 1) PositiveInfinity)) (Interval mnm1 mxm1 AbstractDomain./ glb (Interval mnm2 mxm2) (Interval NegativeInfinity (Regular (-1))))
 
     Empty ∇ interv = interv
     interv ∇ Empty = interv
