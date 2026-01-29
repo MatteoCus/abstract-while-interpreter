@@ -20,10 +20,10 @@ prettyPrintStm stm = prettyStm 0 stm
 prettyStm :: Int -> Stm -> String
 prettyStm indent Skip = indentStr indent ++ "skip"
 
-prettyStm indent (Assign var expr) = 
+prettyStm indent (Assign var expr) =
     indentStr indent ++ var ++ " := " ++ prettyAExp expr
 
-prettyStm indent (Concat stms) = 
+prettyStm indent (Concat stms) =
     intercalate ";\n" (map (prettyStm indent) stms)
 
 prettyStm indent (If cmp thenStm elseStm) =
@@ -68,7 +68,7 @@ prettyCommand (CGuard cmp) = prettyComparison cmp
 
 -- | Pretty print a single arc
 prettyArc :: Arc -> String
-prettyArc (from, cmd, to) = 
+prettyArc (from, cmd, to) =
     show from ++ " --[ " ++ prettyCommand cmd ++ " ]--> " ++ show to
 
 -- | Pretty print the entire CFG as a list of arcs
@@ -93,9 +93,9 @@ prettyPrintGraph (_, entry, exit, arcs) =
     "}\n"
   where
     prettyDotArc (from, cmd, to) =
-        "  " ++ show from ++ " -> " ++ show to ++ 
+        "  " ++ show from ++ " -> " ++ show to ++
         " [label=\"" ++ escapeDot (prettyCommand cmd) ++ "\"];\n"
-    
+
     escapeDot = concatMap escape
       where
         escape '"' = "\\\""
@@ -109,6 +109,9 @@ prettyPrintGraph (_, entry, exit, arcs) =
 -- | Pretty print an interval
 prettyInterval :: Interval -> String
 prettyInterval Empty = "⊥"
+prettyInterval (Interval l@NegativeInfinity u@(Regular _)) = "(" ++ prettyInfinitable l ++ ", " ++ prettyInfinitable u ++ "]"
+prettyInterval (Interval l@(Regular _) u@PositiveInfinity) = "[" ++ prettyInfinitable l ++ ", " ++ prettyInfinitable u ++ ")"
+prettyInterval (Interval NegativeInfinity PositiveInfinity) = "⊤"
 prettyInterval (Interval l u) = "[" ++ prettyInfinitable l ++ ", " ++ prettyInfinitable u ++ "]"
 
 -- | Pretty print an infinitable value
@@ -119,18 +122,18 @@ prettyInfinitable (Regular n) = show n
 
 -- | Pretty print a range (for constants)
 prettyRange :: Infinitable Integer -> Infinitable Integer -> String
-prettyRange l u 
+prettyRange l u
     | l == u = prettyInfinitable l
     | otherwise = "[" ++ prettyInfinitable l ++ ", " ++ prettyInfinitable u ++ "]"
 
 -- | Pretty print a state
 prettyState :: State -> String
 prettyState (Left SmashedBottom) = "⊥"
-prettyState (Right varMap) 
-    | Map.null varMap = "{}"
+prettyState (Right varMap)
+    | Map.null varMap = "⊤"
     | otherwise = "{ " ++ intercalate ", " bindings ++ " }"
   where
-    bindings = map (\(var, interval) -> var ++ " ↦ " ++ prettyInterval interval) 
+    bindings = map (\(var, interval) -> var ++ " ↦ " ++ prettyInterval interval)
                    (Map.toList varMap)
 
 -- | Pretty print all states at all labels

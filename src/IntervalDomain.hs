@@ -129,8 +129,8 @@ instance AbstractDomain Interval where
                                                                             (True, False, _, _) -> Interval NegativeInfinity newMax
                                                                             (False, True,_,_) -> Interval newMin PositiveInfinity
                                                                             (False, False,_,_) -> Interval newMin newMax
-                                                    where newMin = max mnm1 mnm2
-                                                          newMax = min mxm1 mxm2
+                                                            where   newMin = max mnm1 mnm2
+                                                                    newMax = min mxm1 mxm2
 
 
     Empty + _ = Empty

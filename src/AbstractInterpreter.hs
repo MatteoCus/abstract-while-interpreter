@@ -67,6 +67,7 @@ interpretCommand _ _ state = state
 
 propagateRefinedValue :: AExp -> Interval -> State -> RuntimeConfig -> State
 propagateRefinedValue _ _ (Left SmashedBottom) _ = Left SmashedBottom
+propagateRefinedValue _ Empty _ _ = Left SmashedBottom
 propagateRefinedValue (Var x) value (Right state) config = do
                                                     let lookOldValue = Map.lookup x state
                                                     case lookOldValue
@@ -139,11 +140,13 @@ refineWith refinementAlg actualLabel arcs wideningLabels actualConfiguration sho
                 Just state -> state) entryArcs
     let zippedStateCommands = zip (map (\(_,cm,_) -> cm) entryArcs) associatedPreviousStates
     let calculatedStates = map (uncurry (interpretCommand runtimeConfig)) zippedStateCommands
-    let newState = foldr (\s1 s2 -> stateLub s1 s2 runtimeConfig) (Right Map.empty) calculatedStates
-    let state = Map.lookup actualLabel actualConfiguration
-    case state of
-        Nothing -> newState
-        Just s ->
-            if actualLabel `Set.member` wideningLabels && shoulAlgBeExecuted
-            then refinementAlg s newState
-            else newState
+    let currentState = Map.lookup actualLabel actualConfiguration
+    let newState = if null calculatedStates 
+                   then Data.Maybe.fromMaybe (Left SmashedBottom) currentState
+                   else foldr1 (\s1 s2 -> stateLub s1 s2 runtimeConfig) calculatedStates
+    case currentState 
+        of  Nothing -> newState
+            Just s ->
+                    if actualLabel `Set.member` wideningLabels && shoulAlgBeExecuted
+                    then refinementAlg s newState
+                    else newState

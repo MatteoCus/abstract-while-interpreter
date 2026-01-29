@@ -9,7 +9,7 @@ import RuntimeConfiguration (RuntimeConfig(..))
 
 main ::  IO ()
 main = do
-        let config = RuntimeConfig {intervalBounds = (-100, 100), enableWidening = True, enableNarrowing = False}
+        let config = RuntimeConfig {intervalBounds = (-100, 100), enableWidening = False, enableNarrowing = False}
         result <- parseFile "./app/test.txt" config
         case result
                 of Left e -> putStrLn $ "Parsing error: " ++ e
