@@ -2,6 +2,7 @@
 module IntervalDomain (Interval (..), AbstractDomain (..), Infinitable (..), divide) where
 
 import AbstractDomain (AbstractDomain (..))
+import RuntimeConfiguration (RuntimeConfig(..))
 
 -- Definitions for custom interval abstract domain
 data Integral a => Infinitable a = Regular a | NegativeInfinity | PositiveInfinity
@@ -89,17 +90,45 @@ instance AbstractDomain Interval where
     (⊥) = Empty
     (⊤) = Interval NegativeInfinity PositiveInfinity
 
-    lub Empty Empty = (⊥)
-    lub Empty  interval =  interval
-    lub interval Empty =  interval
-    lub (Interval mnm1 mxm1) (Interval mnm2 mxm2) = Interval (min mnm1 mnm2) (max mxm1 mxm2)
+    lub Empty Empty _ = (⊥)
+    lub Empty  interval _ =  interval
+    lub interval Empty _ =  interval
+    lub (Interval mnm1 mxm1) (Interval mnm2 mxm2) config = do
+                                                                let (m,n) = intervalBounds config
+                                                                if m > n && newMin /= newMax
+                                                                then Interval NegativeInfinity PositiveInfinity
+                                                                else if newMin == newMax
+                                                                    then Interval newMin newMax
+                                                                    else
+                                                                        case (newMin < fromInteger m, newMax > fromInteger n, newMax < fromInteger m, newMin > fromInteger n)
+                                                                        of  (_,_,True,_) -> Interval NegativeInfinity PositiveInfinity
+                                                                            (_,_,_, True) -> Interval NegativeInfinity PositiveInfinity
+                                                                            (True, True, _, _) -> Interval NegativeInfinity PositiveInfinity
+                                                                            (True, False, _, _) -> Interval NegativeInfinity newMax
+                                                                            (False, True,_,_) -> Interval newMin PositiveInfinity
+                                                                            (False, False,_,_) -> Interval newMin newMax
+                                                                where newMin = min mnm1 mnm2
+                                                                      newMax = max mxm1 mxm2
 
-    glb Empty Empty = (⊤)
-    glb Empty _ = (⊥)
-    glb _ Empty = (⊥)
-    glb (Interval mnm1 mxm1) (Interval mnm2 mxm2) = if newMin > newMax
-                                                          then Empty
-                                                          else Interval newMin newMax
+    glb Empty Empty _ = (⊤)
+    glb Empty _ _ = (⊥)
+    glb _ Empty _ = (⊥)
+    glb (Interval mnm1 mxm1) (Interval mnm2 mxm2) config =  if newMin > newMax
+                                                            then Empty
+                                                            else do
+                                                                let (m,n) = intervalBounds config
+                                                                if m > n && newMin /= newMax
+                                                                then Interval NegativeInfinity PositiveInfinity
+                                                                else if newMin == newMax
+                                                                    then Interval newMin newMax
+                                                                    else
+                                                                        case (newMin < fromInteger m, newMax > fromInteger n, newMax < fromInteger m, newMin > fromInteger n)
+                                                                        of  (_,_,True,_) -> Interval NegativeInfinity PositiveInfinity
+                                                                            (_,_,_, True) -> Interval NegativeInfinity PositiveInfinity
+                                                                            (True, True, _, _) -> Interval NegativeInfinity PositiveInfinity
+                                                                            (True, False, _, _) -> Interval NegativeInfinity newMax
+                                                                            (False, True,_,_) -> Interval newMin PositiveInfinity
+                                                                            (False, False,_,_) -> Interval newMin newMax
                                                     where newMin = max mnm1 mnm2
                                                           newMax = min mxm1 mxm2
 
@@ -121,12 +150,12 @@ instance AbstractDomain Interval where
         where minim = min (min (min (mnm1 Prelude.* mnm2) (mnm1 Prelude.* mxm2)) (mxm1 Prelude.* mnm2)) (mxm1 Prelude.* mxm2)
               maxim = max (max (max (mnm1 Prelude.* mnm2) (mnm1 Prelude.* mxm2)) (mxm1 Prelude.* mnm2)) (mxm1 Prelude.* mxm2)
 
-    Empty / _ = Empty
-    _ / Empty = Empty
-    (Interval mnm1 mxm1) / (Interval mnm2 mxm2)
+    (/) Empty _ _= Empty
+    (/) _ Empty _ = Empty
+    (/) (Interval mnm1 mxm1)  (Interval mnm2 mxm2) config
         | mnm2 >= 1 = Interval (min (mnm1 `divide` mnm2) (mnm1 `divide` mxm2)) (max (mxm1 `divide` mnm2) (mxm1 `divide` mxm2))
         | mxm2 <= -1 = Interval (min (mxm1 `divide` mnm2) (mxm1 `divide` mxm2)) (max (mnm1 `divide` mnm2) (mnm1 `divide` mxm2))
-        | otherwise = lub (Interval mnm1 mxm1 AbstractDomain./ glb (Interval mnm2 mxm2) (Interval (Regular 1) PositiveInfinity)) (Interval mnm1 mxm1 AbstractDomain./ glb (Interval mnm2 mxm2) (Interval NegativeInfinity (Regular (-1))))
+        | otherwise = lub ((AbstractDomain./) (Interval mnm1 mxm1)  (glb (Interval mnm2 mxm2) (Interval (Regular 1) PositiveInfinity) config) config)  ((AbstractDomain./) (Interval mnm1 mxm1)  (glb (Interval mnm2 mxm2) (Interval NegativeInfinity (Regular (-1))) config ) config) config
 
     Empty ∇ interv = interv
     interv ∇ Empty = interv

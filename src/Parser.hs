@@ -11,6 +11,7 @@ import qualified Data.Functor.Identity
 import Stm (Stm (..))
 import Exp (AExp (..), Comparison (..))
 import IntervalDomain (Infinitable(..))
+import RuntimeConfiguration (RuntimeConfig (intervalBounds))
 
 languageDef :: GenLanguageDef String u Data.Functor.Identity.Identity
 languageDef =
@@ -46,58 +47,62 @@ semi       = Token.semi       lexer -- parses a semicolon
 whiteSpace = Token.whiteSpace lexer -- parses whitespace
 
 -- Main parser
-mainParser :: Parser Stm
-mainParser = whiteSpace >> statement
+mainParser :: RuntimeConfig -> Parser Stm
+mainParser config = whiteSpace >> statement config
 
-statement :: Parser Stm
-statement = do
-            stm <- sepBy1 statement' semi
+statement :: RuntimeConfig -> Parser Stm
+statement config = do
+            stm <- sepBy1 (statement' config) semi
             if null stm
               then return Skip
               else if length stm == 1
                 then return $ head stm
                 else return $ Concat stm
 
-statement' :: Parser Stm
-statement' = whileParser
-            <|> ifParser
+statement' :: RuntimeConfig -> Parser Stm
+statement' config = whileParser config
+            <|> ifParser config
             <|> skipParser
-            <|> assignParser
+            <|> assignParser config
             <?> "statement"
 
-constantRange :: Parser AExp
-constantRange = do
+constantRange :: RuntimeConfig -> Parser AExp
+constantRange config = do
     reservedOp "["
     low <- integer
     reservedOp ","
     up <- integer
     reservedOp "]"
     if low > up
-      then error $ "Invalid interval: [" ++ show low ++ ", " ++ show up ++ "]"
-      else return $ ConstantRange (Regular low) (Regular up)
+      then error $ "Invalid interval: [" ++ show low ++ ", " ++ show up ++ "]"                                                   -- Lower bound greater than the upper bound
+      else 
+        if ((m > n) && (low /= up)) || ((m <= n) && ((low < m) || (up > n)))                                                     -- Not suitable wrt the analysis configuration
+        then error $ "The instantiated domain doesn't allow the provided interval: [" ++ show low ++ ", " ++ show up ++ "]"
+        else return $ ConstantRange (Regular low) (Regular up)
+      where (m,n) = intervalBounds config
 
 constantRangeSingle :: Parser AExp
 constantRangeSingle = do
     val <- integer
     return $ ConstantRange (Regular val) (Regular val)
 
-ifParser :: Parser Stm
-ifParser = do
+ifParser :: RuntimeConfig -> Parser Stm
+ifParser config = do
                 reserved "if"
-                cond <- rExpression <?> "arithmetic expression relation"
+                cond <- rExpression config <?> "arithmetic expression relation"
                 reserved "then"
-                stm1 <- statement <?> "statement after 'then'"
+                stm1 <- statement config <?> "statement after 'then'"
                 reserved "else"
-                stm2 <- statement <?> "statement after 'else'"
+                stm2 <- statement config <?> "statement after 'else'"
                 reserved "fi" <?> "fi keyword"
                 return $ If cond stm1 stm2
 
-whileParser :: Parser Stm
-whileParser = do
+whileParser :: RuntimeConfig -> Parser Stm
+whileParser config= do
                 reserved "while"
-                cond <- rExpression <?> "arithmetic expression relation"
+                cond <- rExpression config <?> "arithmetic expression relation"
                 reserved "do" <?> "do keyword"
-                stm <- statement <?> "statement after 'do'"
+                stm <- statement config <?> "statement after 'do'"
                 reserved "done" <?> "done keyword"
                 return $ While cond stm
 
@@ -106,14 +111,14 @@ skipParser = do
                 reserved "skip"
                 return Skip
 
-assignParser :: Parser Stm
-assignParser = do
+assignParser :: RuntimeConfig -> Parser Stm
+assignParser config = do
                 variable <- identifier
                 reserved ":=" <?> "assignment operator (:=)"
-                Assign variable <$> aExpParser
+                Assign variable <$> aExpParser config
 
-aExpParser :: Parser AExp
-aExpParser = buildExpressionParser aOperators aTerm
+aExpParser :: RuntimeConfig -> Parser AExp
+aExpParser config = buildExpressionParser aOperators (aTerm config)
 
 aOperators = [ [Prefix (reservedOp "-"   >> return Neg)          ]
               , [Infix  (reservedOp "*"   >> return Mul) AssocLeft,
@@ -122,16 +127,16 @@ aOperators = [ [Prefix (reservedOp "-"   >> return Neg)          ]
                  Infix  (reservedOp "-"   >> return Sub) AssocLeft]
              ]
 
-aTerm =  fmap Var identifier
-     <|> constantRange
+aTerm config =  fmap Var identifier
+     <|> constantRange config
      <|> constantRangeSingle
      <?> "arithmetic expression"
 
-rExpression =
+rExpression config =
   do
-    aexp <- aExpParser
+    aexp <- aExpParser config
     op <- relation
-    aexp2 <- aExpParser
+    aexp2 <- aExpParser config
     case aexp2
      of (ConstantRange 0 0) -> return $ op aexp (ConstantRange 0 0)
         _ -> error "comparison must be against 0"
@@ -145,15 +150,15 @@ relation =   (reservedOp "=" >> return Equal)
          <|> (reservedOp "<>" >> return Different)
          <?> "relational operator"
 
-parseString :: String -> Either String Stm
-parseString str =
-  case parse (mainParser <* spaces <* eof) "" str of
+parseString :: String -> RuntimeConfig -> Either String Stm
+parseString str config =
+  case parse (mainParser  config <* spaces <* eof) "" str of
     Left e  -> Left (show e)
     Right r -> Right r
 
-parseFile :: String -> IO (Either String Stm)
-parseFile file =
+parseFile :: String -> RuntimeConfig -> IO (Either String Stm)
+parseFile file config =
   do program  <- readFile file
-     case parse (mainParser <* spaces <* eof) "" program of
+     case parse (mainParser config <* spaces <* eof) "" program of
        Left e  -> return $ Left  (show e)
        Right r -> return $ Right r

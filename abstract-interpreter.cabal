@@ -34,6 +34,7 @@ library
       IntervalDomain
       Parser
       PrettyPrint
+      RuntimeConfiguration
       Stm
   other-modules:
       Paths_abstract_interpreter
