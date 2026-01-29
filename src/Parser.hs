@@ -28,6 +28,7 @@ languageDef =
                                       , "do"
                                       , "done"
                                       , "skip"
+                                      , "inf"
                                       ]
             , Token.reservedOpNames = ["+", "-", "*", "/", ":="
                                       , "=" , "<", ">", "<=", ">=", "<>", "[", "]", ","
@@ -66,19 +67,46 @@ statement' config = whileParser config
             <|> assignParser config
             <?> "statement"
 
+negativeInfinite :: Parser (Infinitable Integer)
+negativeInfinite = do
+              reservedOp "-"
+              reserved "inf"
+              return NegativeInfinity
+
+positiveInfinite :: Parser (Infinitable Integer)
+positiveInfinite = do
+              reserved "inf"
+              return PositiveInfinity
+
+positiveInfiniteSign :: Parser (Infinitable Integer)
+positiveInfiniteSign = do
+              reservedOp "+"
+              reserved "inf"
+              return PositiveInfinity
+
+infinitable :: Parser (Infinitable Integer)
+infinitable = try (
+              do 
+                n <- integer
+                return $ Regular n)
+            <|> negativeInfinite
+            <|> positiveInfinite
+            <|> positiveInfiniteSign
+            <?> "integer or infinite"
+
 constantRange :: RuntimeConfig -> Parser AExp
 constantRange config = do
     reservedOp "["
-    low <- integer
+    low <- infinitable
     reservedOp ","
-    up <- integer
+    up <- infinitable
     reservedOp "]"
     if low > up
       then error $ "Invalid interval: [" ++ show low ++ ", " ++ show up ++ "]"                                                   -- Lower bound greater than the upper bound
       else 
-        if ((m > n) && (low /= up)) || ((m <= n) && ((low < m) || (up > n)))                                                     -- Not suitable wrt the analysis configuration
+        if ((m > n) && (low /= up)) || ((m <= n) && ((low < fromInteger m && (up < fromInteger m || up > fromInteger n)) || (up > fromInteger n && (low < fromInteger m || low > fromInteger n))))                             -- Not suitable wrt the analysis configuration
         then error $ "The instantiated domain doesn't allow the provided interval: [" ++ show low ++ ", " ++ show up ++ "]"
-        else return $ ConstantRange (Regular low) (Regular up)
+        else return $ ConstantRange low up
       where (m,n) = intervalBounds config
 
 constantRangeSingle :: Parser AExp

@@ -1,7 +1,7 @@
 // Test: if nested inside while loop
 
-x := [  2,10 ];
+x := [ - 10 , inf ];
 
-while x >= 0 do
-    x := x - 100
+while y >= 0 do
+    y := y - 100
 done
