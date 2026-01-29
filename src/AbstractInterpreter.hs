@@ -28,25 +28,6 @@ interpretCommand (CAssign var aExp) (Right state) =
         Empty -> Left SmashedBottom
         Interval low maxim -> Right $ Map.insert var (Interval low maxim) state
 
--- interpretCommand (CGuard (SmallerOrEqual (Sub (Var x) (ConstantRange c _)) (ConstantRange (Regular 0) (Regular 0)))) (Right state) =
---     case evalAExp (Var x) (Right state) of
---         Empty -> Left SmashedBottom
---         Interval a b
---             | a > c -> Left SmashedBottom
---             | otherwise -> interpretCommand (CAssign x (ConstantRange a (min b c))) (Right state)
-
--- interpretCommand (CGuard (SmallerOrEqual (Sub (Var x) (Var y)) (ConstantRange (Regular 0) (Regular 0)))) (Right state) =
---     case (exp1, exp2) of
---         (Empty, _) -> Left SmashedBottom
---         (_, Empty) -> Left SmashedBottom
---         (Interval a b, Interval c d)
---             | a > d -> Left SmashedBottom
---             | otherwise ->
---                 let updatedState = interpretCommand (CAssign x (ConstantRange a (min b d))) (Right state)
---                 in interpretCommand (CAssign y (ConstantRange (max c a) d)) updatedState
---    where exp1 = evalAExp (Var x) (Right state)
---          exp2 = evalAExp (Var y) (Right state)
-
 interpretCommand (CGuard (SmallerOrEqual expr (ConstantRange (Regular 0) (Regular 0)))) (Right state) = do
                                                                                                             let value = evalAExp expr (Right state)
                                                                                                             let refinedValue = value `glb` Interval NegativeInfinity (Regular 0)
@@ -69,76 +50,6 @@ interpretCommand (CGuard (Equal expr (ConstantRange (Regular 0) (Regular 0)))) (
                                                                                                             propagateRefinedValue expr refinedValue (Right state)
 
 interpretCommand _ state = state
-
-buildStartingConfiguration :: Set Label -> Label -> Map.Map Label State
-buildStartingConfiguration labels entryLabel = do
-    let entryState = (entryLabel, Right Map.empty)
-    let otherLabels = [(label, Left SmashedBottom) | label <- Set.toList labels, label /= entryLabel]
-    fromList $ entryState : otherLabels
-
-interpret :: Graph -> Map.Map Label State
-interpret graph@(labels, _, _, _)
-    | Set.null labels = Map.empty
-    | otherwise = do
-        let (_, entry, _, _) = graph
-        let startingConfiguration = buildStartingConfiguration labels entry
-        let loopInvariantLabels = findLoopLabels graph Set.empty Set.empty
-        narrowing graph loopInvariantLabels (interpret' graph loopInvariantLabels startingConfiguration)
-
-narrowing :: Graph -> Set Label -> Map.Map Label State -> Map.Map Label State
-narrowing graph@(labels, _, _, arcs) narrowingLabels actualConfiguration = do
-    let labelList = Set.toList labels
-    let newStates = map (\label -> updateStateNarrowing label arcs narrowingLabels actualConfiguration) labelList
-    let newConfiguration = Map.fromList $ zip labelList newStates
-    if actualConfiguration == newConfiguration
-        then actualConfiguration
-        else narrowing graph narrowingLabels newConfiguration
-
-interpret' :: Graph -> Set Label -> Map.Map Label State -> Map.Map Label State
-interpret' graph@(labels, _, _, arcs) wideningLabels actualConfiguration = do
-    let labelList = Set.toList labels
-    let newStates = map (\label -> updateState label arcs wideningLabels actualConfiguration) labelList
-    let newConfiguration = Map.fromList $ zip labelList newStates
-    if actualConfiguration == newConfiguration
-        then actualConfiguration
-        else interpret' graph wideningLabels newConfiguration
-
-
-updateState :: Label -> [Arc] -> Set Label -> Map.Map Label State -> State
-updateState actualLabel arcs wideningLabels actualConfiguration = do
-    let entryArcs = arcsTo actualLabel arcs
-    let associatedPreviousStates = map (\(en,_,_) ->
-            case Map.lookup en actualConfiguration of
-                Nothing -> Left SmashedBottom
-                Just state -> state) entryArcs
-    let zippedStateCommands = zip (map (\(_,cm,_) -> cm) entryArcs) associatedPreviousStates
-    let calculatedStates = map (uncurry interpretCommand) zippedStateCommands
-    let newState = foldr stateLub (Right Map.empty) calculatedStates
-    let state = Map.lookup actualLabel actualConfiguration
-    case state of
-        Nothing -> newState
-        Just s ->
-            if actualLabel `Set.member` wideningLabels
-            then stateWidening s newState
-            else newState
-
-updateStateNarrowing :: Label -> [Arc] -> Set Label -> Map.Map Label State -> State
-updateStateNarrowing actualLabel arcs wideningLabels actualConfiguration = do
-    let entryArcs = arcsTo actualLabel arcs
-    let associatedPreviousStates = map (\(en,_,_) ->
-            case Map.lookup en actualConfiguration of
-                Nothing -> Left SmashedBottom
-                Just state -> state) entryArcs
-    let zippedStateCommands = zip (map (\(_,cm,_) -> cm) entryArcs) associatedPreviousStates
-    let calculatedStates = map (uncurry interpretCommand) zippedStateCommands
-    let newState = foldr stateLub (Right Map.empty) calculatedStates
-    let state = Map.lookup actualLabel actualConfiguration
-    case state of
-        Nothing -> newState
-        Just s ->
-            if actualLabel `Set.member` wideningLabels
-            then stateNarrowing s newState
-            else newState
 
 propagateRefinedValue :: AExp -> Interval -> State -> State
 propagateRefinedValue _ _ (Left SmashedBottom) = Left SmashedBottom
@@ -169,3 +80,54 @@ propagateRefinedValue (Div exp1 exp2) value state = do
                                                         let state1 = propagateRefinedValue exp1 (value IntervalDomain.* evalAExp exp2 state) state
                                                         propagateRefinedValue exp2 (evalAExp exp1 state IntervalDomain./ value ) state1
                                                        
+
+buildStartingConfiguration :: Set Label -> Label -> Map.Map Label State
+buildStartingConfiguration labels entryLabel = do
+    let entryState = (entryLabel, Right Map.empty)
+    let otherLabels = [(label, Left SmashedBottom) | label <- Set.toList labels, label /= entryLabel]
+    fromList $ entryState : otherLabels
+
+interpret :: Graph -> Map.Map Label State
+interpret graph@(labels, _, _, _)
+    | Set.null labels = Map.empty
+    | otherwise = do
+        let (_, entry, _, _) = graph
+        let startingConfiguration = buildStartingConfiguration labels entry
+        let loopInvariantLabels = findLoopLabels graph Set.empty Set.empty
+        narrowing graph loopInvariantLabels (interpret' graph loopInvariantLabels startingConfiguration)
+
+interpret' :: Graph -> Set Label -> Map.Map Label State -> Map.Map Label State
+interpret' graph@(labels, _, _, arcs) wideningLabels actualConfiguration = do
+    let labelList = Set.toList labels
+    let newStates = map (\label -> refineWith stateWidening label arcs wideningLabels actualConfiguration) labelList
+    let newConfiguration = Map.fromList $ zip labelList newStates
+    if actualConfiguration == newConfiguration
+        then actualConfiguration
+        else interpret' graph wideningLabels newConfiguration
+
+narrowing :: Graph -> Set Label -> Map.Map Label State -> Map.Map Label State
+narrowing graph@(labels, _, _, arcs) narrowingLabels actualConfiguration = do
+    let labelList = Set.toList labels
+    let newStates = map (\label -> refineWith stateNarrowing label arcs narrowingLabels actualConfiguration) labelList
+    let newConfiguration = Map.fromList $ zip labelList newStates
+    if actualConfiguration == newConfiguration
+        then actualConfiguration
+        else narrowing graph narrowingLabels newConfiguration
+
+refineWith :: (State -> State -> State) -> Label -> [Arc] -> Set Label -> Map.Map Label State -> State
+refineWith refinementAlg actualLabel arcs wideningLabels actualConfiguration = do
+    let entryArcs = arcsTo actualLabel arcs
+    let associatedPreviousStates = map (\(en,_,_) ->
+            case Map.lookup en actualConfiguration of
+                Nothing -> Left SmashedBottom
+                Just state -> state) entryArcs
+    let zippedStateCommands = zip (map (\(_,cm,_) -> cm) entryArcs) associatedPreviousStates
+    let calculatedStates = map (uncurry interpretCommand) zippedStateCommands
+    let newState = foldr stateLub (Right Map.empty) calculatedStates
+    let state = Map.lookup actualLabel actualConfiguration
+    case state of
+        Nothing -> newState
+        Just s ->
+            if actualLabel `Set.member` wideningLabels
+            then refinementAlg s newState
+            else newState

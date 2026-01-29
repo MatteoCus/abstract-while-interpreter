@@ -29,7 +29,7 @@ languageDef =
                                       , "skip"
                                       ]
             , Token.reservedOpNames = ["+", "-", "*", "/", ":="
-                                      , "=" , "<", ">", "<=", ">=", "<>"
+                                      , "=" , "<", ">", "<=", ">=", "<>", "[", "]", ","
                                       ]
             }
 
@@ -67,12 +67,14 @@ statement' = whileParser
 
 constantRange :: Parser AExp
 constantRange = do
-    reserved "["
+    reservedOp "["
     low <- integer
-    reserved ","
+    reservedOp ","
     up <- integer
-    reserved "]"
-    return $ ConstantRange (Regular low) (Regular up)
+    reservedOp "]"
+    if low > up
+      then error $ "Invalid interval: [" ++ show low ++ ", " ++ show up ++ "]"
+      else return $ ConstantRange (Regular low) (Regular up)
 
 constantRangeSingle :: Parser AExp
 constantRangeSingle = do
