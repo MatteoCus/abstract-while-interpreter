@@ -34,6 +34,7 @@ library
       IntervalDomain
       Parser
       PrettyPrint
+      REPL
       RuntimeConfiguration
       Stm
   other-modules:
@@ -46,6 +47,7 @@ library
   build-depends:
       base >=4.7 && <5
     , containers
+    , directory
     , parsec
   default-language: Haskell2010
 
@@ -62,6 +64,7 @@ executable abstract-interpreter-exe
       abstract-interpreter
     , base >=4.7 && <5
     , containers
+    , directory
   default-language: Haskell2010
 
 test-suite abstract-interpreter-test
@@ -78,4 +81,5 @@ test-suite abstract-interpreter-test
       abstract-interpreter
     , base >=4.7 && <5
     , containers
+    , directory
   default-language: Haskell2010

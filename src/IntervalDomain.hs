@@ -6,7 +6,13 @@ import RuntimeConfiguration (RuntimeConfig(..))
 
 -- Definitions for custom interval abstract domain
 data Integral a => Infinitable a = Regular a | NegativeInfinity | PositiveInfinity
-    deriving (Show, Eq)
+    deriving Eq
+
+instance (Show a, Integral a) => Show (Infinitable a) where
+    show NegativeInfinity = "-inf"
+    show PositiveInfinity = "+inf"
+    show (Regular x) = show x
+
 
 data Interval = Empty | Interval (Infinitable Integer) (Infinitable Integer)
     deriving (Show, Eq)
@@ -100,7 +106,7 @@ instance AbstractDomain Interval where
                                                                 else if newMin == newMax
                                                                     then Interval newMin newMax
                                                                     else
-                                                                        case (newMin < fromInteger m, newMax > fromInteger n, newMax < fromInteger m, newMin > fromInteger n)
+                                                                        case (newMin < m, newMax > n, newMax < m, newMin > n)
                                                                         of  (_,_,True,_) -> Interval NegativeInfinity PositiveInfinity
                                                                             (_,_,_, True) -> Interval NegativeInfinity PositiveInfinity
                                                                             (True, True, _, _) -> Interval NegativeInfinity PositiveInfinity
@@ -122,7 +128,7 @@ instance AbstractDomain Interval where
                                                                 else if newMin == newMax
                                                                     then Interval newMin newMax
                                                                     else
-                                                                        case (newMin < fromInteger m, newMax > fromInteger n, newMax < fromInteger m, newMin > fromInteger n)
+                                                                        case (newMin < m, newMax > n, newMax < m, newMin > n)
                                                                         of  (_,_,True,_) -> Interval NegativeInfinity PositiveInfinity
                                                                             (_,_,_, True) -> Interval NegativeInfinity PositiveInfinity
                                                                             (True, True, _, _) -> Interval NegativeInfinity PositiveInfinity

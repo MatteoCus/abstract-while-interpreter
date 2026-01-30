@@ -20,7 +20,7 @@ evalAExp (ConstantRange l u) _ config = do
                                             else if l == u
                                                  then Interval l u
                                                  else
-                                                    case (l < fromInteger m, u > fromInteger n, l > fromInteger n, u < fromInteger m)
+                                                    case (l < m, u > n, l > n, u < m)
                                                     of  (_,_,True,_) -> Interval NegativeInfinity PositiveInfinity
                                                         (_,_,_, True) -> Interval NegativeInfinity PositiveInfinity
                                                         (True, True, _, _) -> Interval NegativeInfinity PositiveInfinity

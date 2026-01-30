@@ -11,7 +11,7 @@ import qualified Data.Functor.Identity
 import Stm (Stm (..))
 import Exp (AExp (..), Comparison (..))
 import IntervalDomain (Infinitable(..))
-import RuntimeConfiguration (RuntimeConfig (intervalBounds))
+import RuntimeConfiguration (RuntimeConfig (..))
 
 languageDef :: GenLanguageDef String u Data.Functor.Identity.Identity
 languageDef =
@@ -104,7 +104,7 @@ constantRange config = do
     if low > up
       then error $ "Invalid interval: [" ++ show low ++ ", " ++ show up ++ "]"                                                   -- Lower bound greater than the upper bound
       else 
-        if ((m > n) && (low /= up)) || ((m <= n) && ((low < fromInteger m && (up < fromInteger m || up > fromInteger n)) || (up > fromInteger n && (low < fromInteger m || low > fromInteger n))))                             -- Not suitable wrt the analysis configuration
+        if ((m > n) && (low /= up)) || ((m <= n) && ((low < m && (up < m || up > n)) || (up > n && (low < m || low > n))))                             -- Not suitable wrt the analysis configuration
         then error $ "The instantiated domain doesn't allow the provided interval: [" ++ show low ++ ", " ++ show up ++ "]"
         else return $ ConstantRange low up
       where (m,n) = intervalBounds config
@@ -184,9 +184,9 @@ parseString str config =
     Left e  -> Left (show e)
     Right r -> Right r
 
-parseFile :: String -> RuntimeConfig -> IO (Either String Stm)
-parseFile file config =
-  do program  <- readFile file
+parseFile :: RuntimeConfig -> IO (Either String Stm)
+parseFile config =
+  do program  <- readFile (fileToAnalyze config)
      case parse (mainParser config <* spaces <* eof) "" program of
        Left e  -> return $ Left  (show e)
        Right r -> return $ Right r
