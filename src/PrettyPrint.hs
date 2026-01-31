@@ -1,4 +1,4 @@
-module PrettyPrint (prettyPrintStm, prettyPrintCFG, prettyPrintGraph, prettyPrintStates) where
+module PrettyPrint (prettyPrintStm, prettyPrintCFG, prettyPrintGraph, prettyPrintStates, prettyState, prettyInterval, prettyInfinitable, prettyRange) where
 
 import Stm (Stm (..))
 import Exp (AExp (..), Comparison (..))
@@ -15,7 +15,7 @@ import Data.List (intercalate, sortOn)
 
 -- | Pretty print a statement (AST)
 prettyPrintStm :: Stm -> String
-prettyPrintStm stm = prettyStm 0 stm
+prettyPrintStm = prettyStm 0
 
 prettyStm :: Int -> Stm -> String
 prettyStm indent Skip = indentStr indent ++ "skip"

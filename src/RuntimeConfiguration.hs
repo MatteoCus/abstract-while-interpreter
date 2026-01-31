@@ -1,20 +1,31 @@
-module RuntimeConfiguration (RuntimeConfig(..), toggleWidening, toggleNarrowing, setM, setN, setFileToAnalyze) where
-import {-# SOURCE #-} IntervalDomain (Infinitable (..))
+module RuntimeConfiguration (RuntimeConfig(..), toggleWidening, toggleNarrowing, setM, setN, setFileToAnalyze, addBinding, removeBinding) where
+import Infinitable (Infinitable (..))
+import AbstractInterpreter.State (State, SmashedBottom (..))
+import qualified Data.Map as Map
+import {-# SOURCE #-} IntervalDomain (Interval)
+import {-# SOURCE #-} PrettyPrint (prettyState)
 
-data RuntimeConfig = RuntimeConfig {fileToAnalyze :: String, intervalBounds :: (Infinitable Integer, Infinitable Integer), enableWidening :: Bool, enableNarrowing :: Bool}
+data RuntimeConfig = RuntimeConfig {
+    startingConfiguration :: State,
+    fileToAnalyze :: String,
+    intervalBounds :: (Infinitable Integer, Infinitable Integer),
+    enableWidening :: Bool,
+    enableNarrowing :: Bool
+}
 
 instance Show RuntimeConfig where
     show configuration = do
                         let file = "\n- File: " ++ fileToAnalyze configuration
                         let widening = "\n- Widening: " ++ if enableWidening configuration then "ON" else "OFF"
                         let narrowing = "\n- Narrowing: " ++ if enableNarrowing configuration then "ON" else "OFF"
-
+                        let startConf = "\n- Starting configuration (user-defined bindings): " ++ prettyState (startingConfiguration configuration)
                         let interval = "- Interval: " ++ case intervalBounds configuration
                                                             of  (Regular l, PositiveInfinity ) -> "[" ++ show l ++ "," ++ show PositiveInfinity ++ ")"
                                                                 (NegativeInfinity, Regular u ) -> "(" ++ show NegativeInfinity ++ "," ++ show u ++ "]"
                                                                 (NegativeInfinity, PositiveInfinity ) -> "(" ++ show NegativeInfinity ++ "," ++ show PositiveInfinity ++ ")"
                                                                 (l, u ) -> "[" ++ show l ++ "," ++ show u ++ "]"
-                        interval ++ widening ++ narrowing ++ file
+                        interval ++ widening ++ narrowing ++ startConf ++ file
+
 toggleWidening :: RuntimeConfig -> RuntimeConfig
 toggleWidening config = config {enableWidening = not (enableWidening config)}
 
@@ -31,3 +42,16 @@ setN config n = config {intervalBounds = (m, n)}
 
 setFileToAnalyze :: String -> RuntimeConfig -> RuntimeConfig
 setFileToAnalyze file config = config {fileToAnalyze = file}
+
+addBinding :: String -> Interval -> RuntimeConfig -> RuntimeConfig
+addBinding x interval config = case startingConfiguration config
+                             of Left SmashedBottom -> config {startingConfiguration = Right $ Map.singleton x interval}
+                                Right state -> config {startingConfiguration = Right $ Map.union (Map.singleton x interval) state }
+
+removeBinding :: String -> RuntimeConfig -> RuntimeConfig
+removeBinding x config = case startingConfiguration config
+                             of Left SmashedBottom -> config
+                                Right state -> if Map.size newState == 0
+                                                then config {startingConfiguration = Left SmashedBottom}
+                                                else config {startingConfiguration = Right newState}
+                                                where newState = Map.delete x state

@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use <$>" #-}
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
-module Parser (parseString, parseFile) where
+module Parser (parseString, parseFile, integerParser, infinitable) where
 
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
@@ -86,13 +86,17 @@ positiveInfiniteSign = do
 
 infinitable :: Parser (Infinitable Integer)
 infinitable = try (
-              do 
+              do
                 n <- integer
                 return $ Regular n)
             <|> negativeInfinite
             <|> positiveInfinite
             <|> positiveInfiniteSign
             <?> "integer or infinite"
+
+integerParser :: Parser Integer
+integerParser = do
+                  integer
 
 constantRange :: RuntimeConfig -> Parser AExp
 constantRange config = do
@@ -103,7 +107,7 @@ constantRange config = do
     reservedOp "]"
     if low > up
       then error $ "Invalid interval: [" ++ show low ++ ", " ++ show up ++ "]"                                                   -- Lower bound greater than the upper bound
-      else 
+      else
         if ((m > n) && (low /= up)) || ((m <= n) && ((low < m && (up < m || up > n)) || (up > n && (low < m || low > n))))                             -- Not suitable wrt the analysis configuration
         then error $ "The instantiated domain doesn't allow the provided interval: [" ++ show low ++ ", " ++ show up ++ "]"
         else return $ ConstantRange low up

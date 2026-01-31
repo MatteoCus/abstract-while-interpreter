@@ -9,8 +9,13 @@ import System.IO (stdout)
 import System.Directory (getDirectoryContents)
 import Data.Maybe (listToMaybe)
 import IntervalDomain hiding ((-))
-import Parser (parseFile)
+import Parser (parseFile, integerParser, infinitable)
 import Control.Monad (unless)
+import Control.Exception
+import Text.Parsec
+import Text.Parsec.Token (integer)
+import qualified Data.Map as Map
+import AbstractInterpreter.State (SmashedBottom(SmashedBottom))
 
 (!?) :: [a] -> Int -> Maybe a
 xs !? n
@@ -19,7 +24,7 @@ xs !? n
 
 
 config :: RuntimeConfig
-config = RuntimeConfig {fileToAnalyze = baseExampleDirectory ++ "test.txt", intervalBounds = (NegativeInfinity, PositiveInfinity), enableWidening = False, enableNarrowing = False}
+config = RuntimeConfig {startingConfiguration = Left SmashedBottom, fileToAnalyze = baseExampleDirectory ++ "test.txt", intervalBounds = (NegativeInfinity, PositiveInfinity), enableWidening = False, enableNarrowing = False}
 
 baseExampleDirectory :: String
 baseExampleDirectory = "./examples/"
@@ -33,7 +38,7 @@ loadSuccessMessage example = "Example file  " ++ example ++ " loaded."
 intervalFailMessage :: String
 intervalFailMessage = "Invalid interval!"
 
-intervalSuccessMessage :: Integer -> Integer -> String
+intervalSuccessMessage :: Infinitable Integer -> Infinitable Integer -> String
 intervalSuccessMessage m n= "New interval: [" ++ show m ++ ", " ++ show n ++ "]"
 
 loadMessage :: [String] -> String
@@ -49,14 +54,17 @@ loadRepl runtimeConfig = do
                     allFiles <- getDirectoryContents baseExampleDirectory
                     let files = filter (`notElem` [".", ".."]) allFiles
                     print_ $ loadMessage files
-                    input <- putStr ">load " >> readNumber_
-                    result <- loadEval_ input files runtimeConfig
+                    selected <- putStr ">load " >> read_
+                    case parse integerParser ""  selected of
+                      Left _ -> print_ "expecting integer \n" >> loadRepl runtimeConfig
+                      Right input -> do
+                                      result <- loadEval_ input files runtimeConfig
 
-                    if input /= -1 && fst result == loadFailMessage
-                      then print_ (fst result ++ "\n" ) >> loadRepl runtimeConfig
-                      else if input == -1
-                            then return ("Quit from file loading", runtimeConfig)
-                            else return result
+                                      if input /= -1 && fst result == loadFailMessage
+                                        then print_ (fst result ++ "\n" ) >> loadRepl runtimeConfig
+                                        else if input == -1
+                                              then return ("Quit from file loading", runtimeConfig)
+                                              else return result
 
 loadEval_ :: Integer -> [String] -> RuntimeConfig -> IO (String, RuntimeConfig)
 loadEval_ index files runtimeConfig = case files !? (fromInteger index-1)
@@ -65,29 +73,31 @@ loadEval_ index files runtimeConfig = case files !? (fromInteger index-1)
 
 intervalRepl :: RuntimeConfig -> IO (String, RuntimeConfig)
 intervalRepl runtimeConfig = do
-                                print_  "New lower bound: "
-                                m <- putStr ">interval " >> readNumber_
-                                print_  "New upper bound: "
-                                n <- putStr ">interval " >> readNumber_
-                                result <- intervalEval_ m n runtimeConfig
+                                print_  "New lower bound (-inf, +inf for infinite bounds): "
+                                lowerB <- putStr ">interval " >> read_
+                                case parse infinitable ""  lowerB of
+                                  Left _ -> print_ "expecting integer or infinite \n" >> intervalRepl runtimeConfig
+                                  Right m -> do
+                                                print_  "New upper bound (-inf, +inf for infinite bounds): "
+                                                upperB <- putStr ">interval " >> read_
+                                                case parse infinitable ""  upperB of
+                                                  Left _ -> print_ "expecting integer or infinite \n" >> intervalRepl runtimeConfig
+                                                  Right n -> do intervalEval_ m n runtimeConfig
 
-                                if fst result == intervalFailMessage
-                                then print_ (fst result ++ "\n") >> intervalRepl runtimeConfig
-                                else return result
-
-intervalEval_ :: Integer -> Integer -> RuntimeConfig -> IO(String, RuntimeConfig)
+intervalEval_ :: Infinitable Integer -> Infinitable Integer -> RuntimeConfig -> IO(String, RuntimeConfig)
 intervalEval_ m n runtimeConfig = if m > n
                                    then return (intervalFailMessage, runtimeConfig)
-                                   else return (intervalSuccessMessage m n, setN (setM runtimeConfig (Regular m)) (Regular n))
+                                   else return (intervalSuccessMessage m n, setN (setM runtimeConfig m) n)
+
+addBindingEval_ :: String -> Infinitable Integer -> Infinitable Integer -> RuntimeConfig -> IO(String, RuntimeConfig)
+addBindingEval_ var l u runtimeConfig = if l > u
+                                   then return (intervalFailMessage, runtimeConfig)
+                                   else  return (show updatedConf, updatedConf)
+                                         where updatedConf = addBinding var (Interval l u) runtimeConfig
 
 read_ :: IO String
-read_ = putStr "> "
-     >> hFlush stdout
+read_ = hFlush stdout
      >> getLine
-
-readNumber_ :: IO Integer
-readNumber_ = do
-                hFlush stdout >> readLn
 
 eval_ :: String -> RuntimeConfig -> IO (String, RuntimeConfig)
 eval_ ":help" runtimeConfig = return (helpMessage, runtimeConfig)
@@ -122,7 +132,24 @@ eval_ ":analyze" runtimeConfig =  do
                                                             states = interpret graph runtimeConfig
 eval_ ":load" runtimeConfig = loadRepl runtimeConfig
 eval_ ":interval" runtimeConfig = intervalRepl runtimeConfig
-
+eval_ ":removeBinding" runtimeConfig = do
+                                          print_  "Which variable would you like to unbind?"
+                                          var <- putStr ">binding " >> read_
+                                          let updatedConf = removeBinding var runtimeConfig
+                                          return (show updatedConf, updatedConf)
+eval_ ":addBinding" runtimeConfig = do
+                                          print_  "Which variable would you like to bind?"
+                                          var <- putStr ">binding " >> read_
+                                          print_  "Lower bound (-inf, +inf for infinite bounds): "
+                                          lowerB <- putStr ">binding " >> read_
+                                          case parse infinitable ""  lowerB of
+                                            Left _ -> print_ "expecting integer or infinite \n" >> eval_ ":configuration" runtimeConfig
+                                            Right l -> do
+                                                          print_  "Upper bound (-inf, +inf for infinite bounds): "
+                                                          upperB <- putStr ">binding " >> read_
+                                                          case parse infinitable ""  upperB of
+                                                            Left _ -> print_ "expecting integer or infinite \n" >> eval_ ":configuration" runtimeConfig
+                                                            Right u -> addBindingEval_ var l u runtimeConfig
 eval_ input runtimeConfig = return ("Unknown command: " ++ input, runtimeConfig)
 
 print_ :: String -> IO ()
@@ -130,7 +157,7 @@ print_ = putStrLn
 
 repl :: RuntimeConfig -> IO ()
 repl runtimeConfig = do
-  input <- read_
+  input <- putStr "> " >> read_
   result <- eval_ input runtimeConfig
   unless (input == ":quit") $ print_ (fst result ++ "\n" ) >> repl (snd result)
 

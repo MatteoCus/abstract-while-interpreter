@@ -1,6 +1,8 @@
-module Exp (AExp (..), Comparison (..), oppositeComparison) where
+module Exp (AExp (..), Comparison (..), oppositeComparison, freeVariablesExp) where
 
-import IntervalDomain (Infinitable (..))
+import Infinitable (Infinitable (..))
+import Data.Set
+import qualified Data.Set as Set
 
 data AExp = Var String
                 | ConstantRange (Infinitable Integer) (Infinitable Integer)
@@ -26,3 +28,12 @@ oppositeComparison (Smaller exp1 exp2) = GreaterOrEqual exp1 exp2
 oppositeComparison (GreaterOrEqual exp1 exp2) = Smaller exp1 exp2
 oppositeComparison (Greater exp1 exp2) = SmallerOrEqual exp1 exp2
 oppositeComparison (SmallerOrEqual exp1 exp2) = Greater exp1 exp2
+
+freeVariablesExp :: AExp -> Set String
+freeVariablesExp (Var x) = singleton x
+freeVariablesExp (ConstantRange _ _) = Set.empty
+freeVariablesExp (Neg ex) = freeVariablesExp ex
+freeVariablesExp (Sum exp1 exp2) = Set.union (freeVariablesExp exp1) (freeVariablesExp exp2)
+freeVariablesExp (Sub exp1 exp2) = Set.union (freeVariablesExp exp1) (freeVariablesExp exp2)
+freeVariablesExp (Mul exp1 exp2) = Set.union (freeVariablesExp exp1) (freeVariablesExp exp2)
+freeVariablesExp (Div exp1 exp2) = Set.union (freeVariablesExp exp1) (freeVariablesExp exp2)

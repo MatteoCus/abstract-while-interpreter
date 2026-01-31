@@ -28,9 +28,11 @@ library
       AbstractDomain
       AbstractInterpreter
       AbstractInterpreter.State
+      AbstractInterpreter.StateOperations
       CFG
       CFG.Types
       Exp
+      Infinitable
       IntervalDomain
       Parser
       PrettyPrint

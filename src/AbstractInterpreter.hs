@@ -2,14 +2,16 @@ module AbstractInterpreter (interpret) where
 import qualified Data.Map.Lazy as Map
 import CFG (findLoopLabels)
 import Exp (AExp (..), Comparison (..))
-import IntervalDomain (Interval (..), Infinitable(..), AbstractDomain (..))
+import IntervalDomain (Interval (..), AbstractDomain (..))
+import Infinitable (Infinitable(..))
 import qualified Data.Maybe
-import Data.Map (fromList)
-import CFG.Types (Command(..), Graph, Label, Arc, arcsTo)
-import AbstractInterpreter.State (State, SmashedBottom (..), stateWidening, stateNarrowing, stateLub)
+import Data.Map (fromList, fromSet)
+import CFG.Types (Command(..), Graph, Label, Arc, arcsTo, freeVariablesCom)
+import AbstractInterpreter.StateOperations (stateWidening, stateNarrowing, stateLub)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import RuntimeConfiguration (RuntimeConfig (..))
+import AbstractInterpreter.State ( State, SmashedBottom(..) )
 
 evalAExp :: AExp -> State -> RuntimeConfig -> Interval
 evalAExp _ (Left _) _ = Empty
@@ -96,22 +98,29 @@ propagateRefinedValue (Div exp1 exp2) value state config = do
                                                         propagateRefinedValue exp2 ((IntervalDomain./) (evalAExp exp1 state config) value config ) state1 config
 
 
-buildStartingConfiguration :: Set Label -> Label -> Map.Map Label State
-buildStartingConfiguration labels entryLabel = do
-    let entryState = (entryLabel, Right Map.empty)
+buildStartingConfiguration :: Set Label -> Label -> State -> Map.Map Label State
+buildStartingConfiguration labels entryLabel entryState = do
+    let entryConfiguration = (entryLabel, entryState)
     let otherLabels = [(label, Left SmashedBottom) | label <- Set.toList labels, label /= entryLabel]
-    fromList $ entryState : otherLabels
+    fromList $ entryConfiguration : otherLabels
 
 interpret :: Graph -> RuntimeConfig -> Map.Map Label State
 interpret graph@(labels, _, _, _) runtimeConfig
     | Set.null labels = Map.empty
     | otherwise = do
-        let (_, entry, _, _) = graph
-        let startingConfiguration = buildStartingConfiguration labels entry
+        let (_, entry, _, arcs) = graph
+        let entryConfiguration = case (startingConfiguration runtimeConfig, buildEntryDefaultConfiguration arcs)
+                                 of (Left SmashedBottom, defaultConfig) -> defaultConfig
+                                    (Right state, Left SmashedBottom) -> Right state
+                                    (Right state, Right defaultState) -> Right (Map.union state defaultState) 
+        let startConfiguration = buildStartingConfiguration labels entry entryConfiguration
         let loopInvariantLabels = findLoopLabels graph Set.empty Set.empty
         if enableNarrowing runtimeConfig
-            then narrowing graph loopInvariantLabels (interpret' graph loopInvariantLabels startingConfiguration runtimeConfig) runtimeConfig
-            else interpret' graph loopInvariantLabels startingConfiguration runtimeConfig
+            then narrowing graph loopInvariantLabels (interpret' graph loopInvariantLabels startConfiguration runtimeConfig) runtimeConfig
+            else interpret' graph loopInvariantLabels startConfiguration runtimeConfig
+
+buildEntryDefaultConfiguration :: [Arc] -> State
+buildEntryDefaultConfiguration arcs = Right $ fromSet (\_ -> Interval NegativeInfinity PositiveInfinity) (foldr (Set.union . (\(_,cm,_) -> freeVariablesCom cm)) Set.empty arcs)
 
 interpret' :: Graph -> Set Label -> Map.Map Label State -> RuntimeConfig -> Map.Map Label State
 interpret' graph@(labels, _, _, arcs) wideningLabels actualConfiguration runtimeConfig = do
@@ -141,10 +150,10 @@ refineWith refinementAlg actualLabel arcs wideningLabels actualConfiguration sho
     let zippedStateCommands = zip (map (\(_,cm,_) -> cm) entryArcs) associatedPreviousStates
     let calculatedStates = map (uncurry (interpretCommand runtimeConfig)) zippedStateCommands
     let currentState = Map.lookup actualLabel actualConfiguration
-    let newState = if null calculatedStates 
+    let newState = if null calculatedStates
                    then Data.Maybe.fromMaybe (Left SmashedBottom) currentState
                    else foldr1 (\s1 s2 -> stateLub s1 s2 runtimeConfig) calculatedStates
-    case currentState 
+    case currentState
         of  Nothing -> newState
             Just s ->
                     if actualLabel `Set.member` wideningLabels && shoulAlgBeExecuted
