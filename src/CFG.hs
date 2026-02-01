@@ -1,7 +1,7 @@
 module CFG (buildCFG, findLoopLabels, normalize) where
 import Exp (oppositeComparison)
 import Stm (Stm (..))
-import CFG.Types (Label, Graph, Command(..), Arc)
+import CFG.Graph (Label, Graph, Command(..), Arc)
 import Data.Set (Set)
 import qualified Data.Set as Set
 

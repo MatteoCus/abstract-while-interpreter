@@ -1,0 +1,10 @@
+// computes the factorial of x (144) and saves the result in y
+
+y := 1;
+x := 144;
+z := 0;
+
+while x-1 > 0 do
+  y := y*x; 
+  x := x-1
+done

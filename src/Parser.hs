@@ -171,7 +171,7 @@ rExpression config =
     aexp2 <- aExpParser config
     case aexp2
      of (ConstantRange 0 0) -> return $ op aexp (ConstantRange 0 0)
-        _ -> error "comparison must be against 0"
+        _ -> fail "comparison must be against 0"
 
 
 relation =   (reservedOp "=" >> return Equal)

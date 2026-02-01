@@ -30,7 +30,8 @@ library
       AbstractInterpreter.State
       AbstractInterpreter.StateOperations
       CFG
-      CFG.Types
+      CFG.Graph
+      CFG.GraphOperations
       Exp
       Infinitable
       IntervalDomain

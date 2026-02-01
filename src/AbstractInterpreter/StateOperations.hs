@@ -1,5 +1,5 @@
-module AbstractInterpreter.StateOperations (State, SmashedBottom(..), stateLub, stateWidening, stateNarrowing) where
-import IntervalDomain (Interval, AbstractDomain (lub, (∇), (△)))
+module AbstractInterpreter.StateOperations (stateLub, stateWidening, stateNarrowing) where
+import IntervalDomain (AbstractDomain (lub, (∇), (△)))
 import qualified Data.Map.Lazy as Map
 import RuntimeConfiguration (RuntimeConfig)
 import AbstractInterpreter.State (State, SmashedBottom (..))

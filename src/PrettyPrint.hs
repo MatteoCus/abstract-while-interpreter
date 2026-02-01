@@ -2,7 +2,7 @@ module PrettyPrint (prettyPrintStm, prettyPrintCFG, prettyPrintGraph, prettyPrin
 
 import Stm (Stm (..))
 import Exp (AExp (..), Comparison (..))
-import CFG.Types (Command (..), Label, Arc, Graph)
+import CFG.Graph (Command (..), Label, Arc, Graph)
 import IntervalDomain (Interval (..), Infinitable (..))
 import AbstractInterpreter.State (State, SmashedBottom (..))
 import qualified Data.Map as Map

@@ -1,4 +1,4 @@
-module REPL where
+module REPL (repl, headerMessage, config) where
 import RuntimeConfiguration
 import qualified Data.Set as Set
 import PrettyPrint
@@ -11,10 +11,7 @@ import Data.Maybe (listToMaybe)
 import IntervalDomain hiding ((-))
 import Parser (parseFile, integerParser, infinitable)
 import Control.Monad (unless)
-import Control.Exception
 import Text.Parsec
-import Text.Parsec.Token (integer)
-import qualified Data.Map as Map
 import AbstractInterpreter.State (SmashedBottom(SmashedBottom))
 
 (!?) :: [a] -> Int -> Maybe a
@@ -24,7 +21,58 @@ xs !? n
 
 
 config :: RuntimeConfig
-config = RuntimeConfig {startingConfiguration = Left SmashedBottom, fileToAnalyze = baseExampleDirectory ++ "test.txt", intervalBounds = (NegativeInfinity, PositiveInfinity), enableWidening = False, enableNarrowing = False}
+config = RuntimeConfig {startingConfiguration = Left SmashedBottom, fileToAnalyze = baseExampleDirectory ++ "simple-loop.txt", intervalBounds = (NegativeInfinity, PositiveInfinity), enableWidening = False, enableNarrowing = False}
+
+headerMessage :: String
+headerMessage = "Welcome to the abstract interpreter for While language! \
+                \\n\nType :help for help"
+
+infoMessage :: String
+infoMessage = "The analysis is performed by modeling the program as a Control-Flow Graph and iterating over the directed arcs using a parametrized version of the interval domain. \n\
+              \You can configure: \n\
+              \       1) The range [m,n] of the interval domain (it could even be infinite); if you set m > n, you'll fallback into the constant propagation domain \n\
+              \       2) The use of widening during the analysis (note: if [m,n] finite, the analysis will converge even without widening) \n\
+              \       3) The use of narrowing to refine the analysis \n\
+              \       4) The example file to analyze, from a list of pre-defined files (contained inside the './examples' directory, which is scanned each time the option is selected) \n\
+              \       5) The starting configuration for the analysis (if unspecified, expect ⊤ for the entry label, ⊥ for all the other labels, (-inf, +inf) interval)"
+
+helpMessage :: String
+helpMessage = ":load                 Load a While source code from FILE to memory.\n\ 
+              \                      Displayed files are stored inside the /examples directory.\
+              \\n\n\
+              \:analyze              It interprets the latest loaded FILE\
+              \\n\n\
+              \:ast                  Show the AST of the latest loaded FILE.\
+              \\n\n\
+              \:cfg                  Show the CFG of the latest loaded FILE.\
+              \\n\n\
+              \:reset                Reset the analyzer configuration.\n\
+              \                      - ⊤ for the entry label \n\
+              \                      - ⊥ for all the other labels \n\
+              \                      - (-inf, +inf) as parametric interval, basic interval domain\n\
+              \                      - './examples/simple-loop.txt' as loaded file\
+              \\n\n\
+              \:configuration        Show the content of the analyzer configuration.\
+              \\n\n\
+              \:addBinding           Add a new variable binding to the custom-defined initial configuration \n\
+              \                      for the entry label.\
+              \\n\n\
+              \:removeBinding        Remove a variable binding from the custom-defined initial configuration \n\
+              \                      for the entry label.\
+              \\n\n\
+              \:interval             Update the interval used during analysis.\
+              \\n\n\
+              \:widening             Toggle usage of widening during analysis.\n\
+              \                      By default, widening is off.\
+              \\n\n\
+              \:narrowing            Toggle usage of narrowing during analysis.\n\
+              \                      By default, narrowing is off.\
+              \\n\n\
+              \:info                 Show infos about this project and the analysis algorithm implemented.\
+              \\n\n\
+              \:quit                 Quit this REPL.\
+              \\n\n\
+              \:help                 Show this help message."
 
 baseExampleDirectory :: String
 baseExampleDirectory = "./examples/"
@@ -38,16 +86,20 @@ loadSuccessMessage example = "Example file  " ++ example ++ " loaded."
 intervalFailMessage :: String
 intervalFailMessage = "Invalid interval!"
 
+constantPropagationMessage :: String
+constantPropagationMessage = "\nLower bound is greater than upper bound, the analysis will take place with constant propagation domain!"
+
 intervalSuccessMessage :: Infinitable Integer -> Infinitable Integer -> String
 intervalSuccessMessage m n= "New interval: [" ++ show m ++ ", " ++ show n ++ "]"
 
 loadMessage :: [String] -> String
 loadMessage files = do
-                      let start = "Available example files: \n"
+                      let start = "Type '-1' to exit the file loading. \n\n\
+                                  \Available example files: \n"
                       start ++ loadMessage' files 1
 loadMessage' :: [String] -> Int -> String
 loadMessage' [] _ = ""
-loadMessage' (x : xs) n = show n ++ "): " ++ x ++ "\n" ++ loadMessage' xs (n Prelude.- 1)
+loadMessage' (x : xs) n = show n ++ "): " ++ x ++ "\n" ++ loadMessage' xs (n Prelude.+ 1)
 
 loadRepl :: RuntimeConfig -> IO (String, RuntimeConfig)
 loadRepl runtimeConfig = do
@@ -73,7 +125,8 @@ loadEval_ index files runtimeConfig = case files !? (fromInteger index-1)
 
 intervalRepl :: RuntimeConfig -> IO (String, RuntimeConfig)
 intervalRepl runtimeConfig = do
-                                print_  "New lower bound (-inf, +inf for infinite bounds): "
+                                print_  "If lower bound is greater than upper bound, fallback to constant propagation domain. \n\n\
+                                        \New lower bound (-inf, +inf for infinite bounds): "
                                 lowerB <- putStr ">interval " >> read_
                                 case parse infinitable ""  lowerB of
                                   Left _ -> print_ "expecting integer or infinite \n" >> intervalRepl runtimeConfig
@@ -86,14 +139,17 @@ intervalRepl runtimeConfig = do
 
 intervalEval_ :: Infinitable Integer -> Infinitable Integer -> RuntimeConfig -> IO(String, RuntimeConfig)
 intervalEval_ m n runtimeConfig = if m > n
-                                   then return (intervalFailMessage, runtimeConfig)
+                                   then return (constantPropagationMessage, setN (setM runtimeConfig m) n)
                                    else return (intervalSuccessMessage m n, setN (setM runtimeConfig m) n)
 
 addBindingEval_ :: String -> Infinitable Integer -> Infinitable Integer -> RuntimeConfig -> IO(String, RuntimeConfig)
-addBindingEval_ var l u runtimeConfig = if l > u
-                                   then return (intervalFailMessage, runtimeConfig)
-                                   else  return (show updatedConf, updatedConf)
-                                         where updatedConf = addBinding var (Interval l u) runtimeConfig
+addBindingEval_ var l u runtimeConfig
+  | l > u = return (intervalFailMessage, runtimeConfig)
+  | l > n || u < m = return ("The binding interval is not included in the analysis interval!", runtimeConfig)
+  | otherwise = return (show updatedConf, updatedConf)
+  where
+      updatedConf = addBinding var (Interval l u) runtimeConfig
+      (m, n) = intervalBounds runtimeConfig
 
 read_ :: IO String
 read_ = hFlush stdout
@@ -157,50 +213,7 @@ print_ = putStrLn
 
 repl :: RuntimeConfig -> IO ()
 repl runtimeConfig = do
+  print_ headerMessage
   input <- putStr "> " >> read_
   result <- eval_ input runtimeConfig
   unless (input == ":quit") $ print_ (fst result ++ "\n" ) >> repl (snd result)
-
-headerMessage :: String
-headerMessage = "Welcome to the abstract interpreter for While language! \
-                \\n\nType :help for help"
-
-infoMessage :: String
-infoMessage = "The analysis is performed by modeling the program as a Control-Flow Graph and iterating over the directed arcs using a parametrized version of the interval domain. \n\
-              \You can configure: \n\
-              \       1) The range [m,n] of the interval domain (it could even be infinite); if you set m > n, you'll fallback into the constant propagation domain \n\
-              \       2) The use of widening during the analysis (note: if [m,n] finite, the analysis will converge even without widening) \n\
-              \       3) The use of narrowing to refine the analysis \n\
-              \       4) The example file to analyze, from a list of pre-defined files (contained inside the './examples' directory, which is scanned each time the option is selected) \n\
-              \       5) The starting configuration for the analysis (if unspecified, expect ⊤ for the entry label, ⊥ for all the other labels, (-inf, +inf) interval)"
-
-helpMessage :: String
-helpMessage = ":load                 Load a While source code from FILE to memory.\n\ 
-              \                      Displayed files are stored inside the /examples directory.\
-              \\n\n\
-              \:analyze              It interprets the latest loaded FILE\
-              \\n\n\
-              \:ast                  Show the AST of the latest loaded FILE.\
-              \\n\n\
-              \:cfg                  Show the CFG of the latest loaded FILE.\
-              \\n\n\
-              \:reset                Reset the analyzer configuration.\n\
-              \                      - ⊤ for the entry label \n\
-              \                      - ⊥ for all the other labels \n\
-              \                      - (-inf, +inf) as parametric interval, basic interval domain\
-              \\n\n\
-              \:configuration        Show the content of the analyzer configuration.\
-              \\n\n\
-              \:interval             Update the interval used during analysis.\
-              \\n\n\
-              \:widening             Toggle usage of widening during analysis.\n\
-              \                      By default, widening is off.\
-              \\n\n\
-              \:narrowing            Toggle usage of narrowing during analysis.\n\
-              \                      By default, narrowing is off.\
-              \\n\n\
-              \:info                 Show infos about this project and the analysis algorithm implemented.\
-              \\n\n\
-              \:quit                 Quit this REPL.\
-              \\n\n\
-              \:help                 Show this help message."

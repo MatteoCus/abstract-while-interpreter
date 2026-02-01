@@ -1,4 +1,4 @@
-module AbstractInterpreter.State where
+module AbstractInterpreter.State (State, SmashedBottom (..)) where
 import qualified Data.Map as Map
 import {-# SOURCE #-} IntervalDomain (Interval)
 data SmashedBottom = SmashedBottom

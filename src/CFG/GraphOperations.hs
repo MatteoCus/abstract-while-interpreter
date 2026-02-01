@@ -1,16 +1,8 @@
-module CFG.Types (Command(..), Label, Arc, Graph, arcsTo, arcsFrom, freeVariablesCom) where
-import Exp (AExp, Comparison (..), freeVariablesExp)
-import Data.Set (Set)
+module CFG.GraphOperations (arcsTo, arcsFrom, freeVariablesCom) where
+import CFG.Graph
 import qualified Data.Set as Set
-
-data Command = CAssign String AExp | CGuard Comparison
-                deriving (Show)
-
-type Label = Int
-
-type Arc = (Label, Command, Label)
-
-type Graph = (Set Label, Label, Label, [Arc])
+import Exp (Comparison(..), freeVariablesExp)
+import Data.Set (Set)
 
 arcsTo :: Label -> [Arc] -> [Arc]
 arcsTo exitLabel = filter (\(_,_,exit) -> exit == exitLabel)

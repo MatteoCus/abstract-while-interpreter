@@ -1,3 +1,0 @@
-// Test: if nested inside while loop
-
-x := y

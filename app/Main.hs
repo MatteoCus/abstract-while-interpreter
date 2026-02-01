@@ -1,5 +1,5 @@
 module Main (main) where
-import REPL
+import REPL (repl, headerMessage, config)
 
 main :: IO ()
 main = do

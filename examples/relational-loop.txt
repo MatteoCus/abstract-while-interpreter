@@ -1,0 +1,7 @@
+y := 10;
+x := 0;
+
+while x - y < 0 do
+    x := x + 1;
+    y := y - 1
+done

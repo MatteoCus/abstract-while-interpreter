@@ -6,12 +6,13 @@ import IntervalDomain (Interval (..), AbstractDomain (..))
 import Infinitable (Infinitable(..))
 import qualified Data.Maybe
 import Data.Map (fromList, fromSet)
-import CFG.Types (Command(..), Graph, Label, Arc, arcsTo, freeVariablesCom)
+import CFG.Graph (Command(..), Graph, Label, Arc)
 import AbstractInterpreter.StateOperations (stateWidening, stateNarrowing, stateLub)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import RuntimeConfiguration (RuntimeConfig (..))
 import AbstractInterpreter.State ( State, SmashedBottom(..) )
+import CFG.GraphOperations (freeVariablesCom, arcsTo)
 
 evalAExp :: AExp -> State -> RuntimeConfig -> Interval
 evalAExp _ (Left _) _ = Empty
@@ -112,7 +113,7 @@ interpret graph@(labels, _, _, _) runtimeConfig
         let entryConfiguration = case (startingConfiguration runtimeConfig, buildEntryDefaultConfiguration arcs)
                                  of (Left SmashedBottom, defaultConfig) -> defaultConfig
                                     (Right state, Left SmashedBottom) -> Right state
-                                    (Right state, Right defaultState) -> Right (Map.union state defaultState) 
+                                    (Right state, Right defaultState) -> Right (Map.union state defaultState)
         let startConfiguration = buildStartingConfiguration labels entry entryConfiguration
         let loopInvariantLabels = findLoopLabels graph Set.empty Set.empty
         if enableNarrowing runtimeConfig
@@ -123,33 +124,38 @@ buildEntryDefaultConfiguration :: [Arc] -> State
 buildEntryDefaultConfiguration arcs = Right $ fromSet (\_ -> Interval NegativeInfinity PositiveInfinity) (foldr (Set.union . (\(_,cm,_) -> freeVariablesCom cm)) Set.empty arcs)
 
 interpret' :: Graph -> Set Label -> Map.Map Label State -> RuntimeConfig -> Map.Map Label State
-interpret' graph@(labels, _, _, arcs) wideningLabels actualConfiguration runtimeConfig = do
+interpret' graph@(labels, entry, _, arcs) wideningLabels actualConfiguration runtimeConfig = do
     let labelList = Set.toList labels
-    let newStates = map (\label -> refineWith stateWidening label arcs wideningLabels actualConfiguration (enableWidening runtimeConfig) runtimeConfig) labelList
+    let newStates = map (\label -> refineWith stateWidening label entry arcs wideningLabels actualConfiguration (enableWidening runtimeConfig) runtimeConfig) labelList
     let newConfiguration = Map.fromList $ zip labelList newStates
     if actualConfiguration == newConfiguration
         then actualConfiguration
         else interpret' graph wideningLabels newConfiguration runtimeConfig
 
 narrowing :: Graph -> Set Label -> Map.Map Label State -> RuntimeConfig -> Map.Map Label State
-narrowing graph@(labels, _, _, arcs) narrowingLabels actualConfiguration runtimeConfig = do
+narrowing graph@(labels, entry, _, arcs) narrowingLabels actualConfiguration runtimeConfig = do
     let labelList = Set.toList labels
-    let newStates = map (\label -> refineWith stateNarrowing label arcs narrowingLabels actualConfiguration (enableNarrowing runtimeConfig) runtimeConfig) labelList
+    let newStates = map (\label -> refineWith stateNarrowing label entry arcs narrowingLabels actualConfiguration (enableNarrowing runtimeConfig) runtimeConfig) labelList
     let newConfiguration = Map.fromList $ zip labelList newStates
     if actualConfiguration == newConfiguration
         then actualConfiguration
         else narrowing graph narrowingLabels newConfiguration runtimeConfig
 
-refineWith :: (State -> State -> State) -> Label -> [Arc] -> Set Label -> Map.Map Label State -> Bool -> RuntimeConfig -> State
-refineWith refinementAlg actualLabel arcs wideningLabels actualConfiguration shoulAlgBeExecuted runtimeConfig = do
+refineWith :: (State -> State -> State) -> Label -> Label -> [Arc] -> Set Label -> Map.Map Label State -> Bool -> RuntimeConfig -> State
+refineWith refinementAlg actualLabel entryLabel arcs wideningLabels actualConfiguration shoulAlgBeExecuted runtimeConfig = do
     let entryArcs = arcsTo actualLabel arcs
     let associatedPreviousStates = map (\(en,_,_) ->
             case Map.lookup en actualConfiguration of
                 Nothing -> Left SmashedBottom
                 Just state -> state) entryArcs
     let zippedStateCommands = zip (map (\(_,cm,_) -> cm) entryArcs) associatedPreviousStates
-    let calculatedStates = map (uncurry (interpretCommand runtimeConfig)) zippedStateCommands
+    let calculatedStates_ = map (uncurry (interpretCommand runtimeConfig)) zippedStateCommands
     let currentState = Map.lookup actualLabel actualConfiguration
+    let calculatedStates = if actualLabel == entryLabel && not (null calculatedStates_)
+                      then case currentState of
+                             Nothing -> calculatedStates_
+                             Just s -> s : calculatedStates_
+                      else calculatedStates_
     let newState = if null calculatedStates
                    then Data.Maybe.fromMaybe (Left SmashedBottom) currentState
                    else foldr1 (\s1 s2 -> stateLub s1 s2 runtimeConfig) calculatedStates

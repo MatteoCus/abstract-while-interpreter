@@ -1,6 +1,7 @@
 module RuntimeConfiguration (RuntimeConfig(..), toggleWidening, toggleNarrowing, setM, setN, setFileToAnalyze, addBinding, removeBinding) where
 import Infinitable (Infinitable (..))
 import AbstractInterpreter.State (State, SmashedBottom (..))
+
 import qualified Data.Map as Map
 import {-# SOURCE #-} IntervalDomain (Interval)
 import {-# SOURCE #-} PrettyPrint (prettyState)
