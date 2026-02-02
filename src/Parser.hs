@@ -108,7 +108,7 @@ constantRange config = do
     if low > up
       then error $ "Invalid interval: [" ++ show low ++ ", " ++ show up ++ "]"                                                   -- Lower bound greater than the upper bound
       else
-        if ((m > n) && (low /= up)) || ((m <= n) && ((low < m && (up < m || up > n)) || (up > n && (low < m || low > n))))                             -- Not suitable wrt the analysis configuration
+        if ((m > n) && (low /= up)) || ((m <= n) && ((low < m && (up < m || up > n)) || (up > n && (low < m || low > n))))       -- Not suitable wrt the analysis configuration
         then error $ "The instantiated domain doesn't allow the provided interval: [" ++ show low ++ ", " ++ show up ++ "]"
         else return $ ConstantRange low up
       where (m,n) = intervalBounds config

@@ -1,10 +1,9 @@
 name:                abstract-interpreter
-version:             0.1.0.0
-github:              "githubuser/abstract-interpreter"
+version:             1.0.0
+github:              "MatteoCus/abstract-interpreter"
 license:             BSD-3-Clause
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2026 Author name here"
+author:              "Matteo Cusin"
+copyright:           "2026 Matteo Cusin"
 
 extra-source-files:
 - README.md
@@ -17,7 +16,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/abstract-interpreter#readme>
+description:         Please see the README on GitHub at <https://github.com/MatteoCus/abstract-interpreter#readme>
 
 dependencies:
 - base >= 4.7 && < 5

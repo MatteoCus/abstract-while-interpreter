@@ -52,7 +52,5 @@ addBinding x interval config = case startingConfiguration config
 removeBinding :: String -> RuntimeConfig -> RuntimeConfig
 removeBinding x config = case startingConfiguration config
                              of Left SmashedBottom -> config
-                                Right state -> if Map.size newState == 0
-                                                then config {startingConfiguration = Left SmashedBottom}
-                                                else config {startingConfiguration = Right newState}
+                                Right state ->  config {startingConfiguration = Right newState}
                                                 where newState = Map.delete x state

@@ -12,7 +12,9 @@ import IntervalDomain hiding ((-))
 import Parser (parseFile, integerParser, infinitable)
 import Control.Monad (unless)
 import Text.Parsec
-import AbstractInterpreter.State (SmashedBottom(SmashedBottom))
+import qualified Data.Map as Map
+import CFG.GraphOperations (freeVariablesCom)
+import Data.Set (toList)
 
 (!?) :: [a] -> Int -> Maybe a
 xs !? n
@@ -21,7 +23,7 @@ xs !? n
 
 
 config :: RuntimeConfig
-config = RuntimeConfig {startingConfiguration = Left SmashedBottom, fileToAnalyze = baseExampleDirectory ++ "simple-loop.txt", intervalBounds = (NegativeInfinity, PositiveInfinity), enableWidening = False, enableNarrowing = False}
+config = RuntimeConfig {startingConfiguration = Right Map.empty, fileToAnalyze = baseExampleDirectory ++ "simple-loop.txt", intervalBounds = (NegativeInfinity, PositiveInfinity), enableWidening = False, enableNarrowing = False}
 
 headerMessage :: String
 headerMessage = "Welcome to the abstract interpreter for While language! \
@@ -80,6 +82,9 @@ baseExampleDirectory = "./examples/"
 loadFailMessage :: String
 loadFailMessage = "Please select a valid example file!"
 
+bindingFailMessage :: String
+bindingFailMessage = "Please select a valid variable!"
+
 loadSuccessMessage :: String -> String
 loadSuccessMessage example = "Example file  " ++ example ++ " loaded."
 
@@ -96,10 +101,17 @@ loadMessage :: [String] -> String
 loadMessage files = do
                       let start = "Type '-1' to exit the file loading. \n\n\
                                   \Available example files: \n"
-                      start ++ loadMessage' files 1
-loadMessage' :: [String] -> Int -> String
-loadMessage' [] _ = ""
-loadMessage' (x : xs) n = show n ++ "): " ++ x ++ "\n" ++ loadMessage' xs (n Prelude.+ 1)
+                      start ++ showArrayStrings' files 1
+
+bindingMessage :: [String] -> String
+bindingMessage variables = do
+                      let start = "Type '-1' to exit the variable selection. \n\n\
+                                  \Available variables: \n"
+                      start ++ showArrayStrings' variables 1
+
+showArrayStrings' :: [String] -> Int -> String
+showArrayStrings' [] _ = ""
+showArrayStrings' (x : xs) n = show n ++ "): " ++ x ++ "\n" ++ showArrayStrings' xs (n Prelude.+ 1)
 
 loadRepl :: RuntimeConfig -> IO (String, RuntimeConfig)
 loadRepl runtimeConfig = do
@@ -142,14 +154,101 @@ intervalEval_ m n runtimeConfig = if m > n
                                    then return (constantPropagationMessage, setN (setM runtimeConfig m) n)
                                    else return (intervalSuccessMessage m n, setN (setM runtimeConfig m) n)
 
+addBindingRepl :: RuntimeConfig -> IO (String, RuntimeConfig)
+addBindingRepl runtimeConfig = do
+  result <- parseFile runtimeConfig
+  case result of
+    Left e -> return ("Parsing error while trying to infer variables for binding: " ++ e, runtimeConfig)
+    Right ast -> handleValidAst ast
+
+  where
+    handleValidAst ast = do
+      let arcs = getArcs ast
+      let freeVar = extractFreeVariables arcs
+      if null freeVar then return ("", runtimeConfig)
+      else do
+        print_ $ bindingMessage freeVar
+        selected <- promptUser ">binding "
+        handleSelection freeVar selected
+
+    getArcs ast = 
+      let (_, _, _, arcs) = buildCFG ast (Set.empty, 0, 0, []) 0
+      in arcs
+
+    extractFreeVariables = toList . foldr (Set.union . (\(_, cm, _) -> freeVariablesCom cm)) Set.empty
+
+    handleSelection freeVar selected =
+      case parse integerParser "No variables to bind" selected of
+        Left _ -> print_ "expecting integer \n" >> addBindingRepl runtimeConfig
+        Right input -> processInput freeVar input
+
+    processInput freeVar input
+      | input == -1 = return ("Quit from adding variable binding", runtimeConfig)
+      | otherwise = selectVariable freeVar input
+
+    selectVariable freeVar input =
+      case freeVar !? (fromInteger input - 1) of
+        Nothing -> print_ bindingFailMessage >> addBindingRepl runtimeConfig
+        Just var -> getBounds var
+
+    getBounds var = do
+      lowerB <- promptBound "Lower"
+      case lowerB of
+        Nothing -> print_ "expecting integer or infinite \n" >> eval_ ":configuration" runtimeConfig
+        Just l -> do
+          upperB <- promptBound "Upper"
+          case upperB of
+            Nothing -> print_ "expecting integer or infinite \n" >> eval_ ":configuration" runtimeConfig
+            Just u -> addBindingEval_ var l u runtimeConfig
+
+    promptBound boundType = do
+      print_ $ boundType ++ " bound (-inf, +inf for infinite bounds): "
+      input <- promptUser ">binding "
+      return $ either (const Nothing) Just (parse infinitable "" input)
+
+    promptUser prompt = putStr prompt >> read_
+
 addBindingEval_ :: String -> Infinitable Integer -> Infinitable Integer -> RuntimeConfig -> IO(String, RuntimeConfig)
 addBindingEval_ var l u runtimeConfig
   | l > u = return (intervalFailMessage, runtimeConfig)
   | l > n || u < m = return ("The binding interval is not included in the analysis interval!", runtimeConfig)
-  | otherwise = return (show updatedConf, updatedConf)
+  | otherwise = do  let updatedConf = addBinding var (Interval l u) runtimeConfig
+                    return (show updatedConf, updatedConf)
   where
-      updatedConf = addBinding var (Interval l u) runtimeConfig
-      (m, n) = intervalBounds runtimeConfig
+    (m, n) = intervalBounds runtimeConfig
+
+removeBindingRepl :: RuntimeConfig -> IO (String, RuntimeConfig)
+removeBindingRepl runtimeConfig = 
+  case startingConfiguration runtimeConfig of
+    Left _ -> return ("No variables to unbind", runtimeConfig)
+    Right state -> handleRemoveBinding (Map.keys state)
+
+  where
+    handleRemoveBinding freeVar = do
+      print_ $ bindingMessage freeVar
+      selected <- promptUser ">binding "
+      processSelection freeVar selected
+
+    processSelection freeVar selected =
+      case parse integerParser "" selected of
+        Left _ -> print_ "expecting integer \n" >> removeBindingRepl runtimeConfig
+        Right input -> handleInput freeVar input
+
+    handleInput freeVar input
+      | input == -1 = return ("Quit from removing variable binding", runtimeConfig)
+      | otherwise = selectVariableToRemove freeVar input
+
+    selectVariableToRemove freeVar input =
+      case freeVar !? (fromInteger input - 1) of
+        Nothing -> print_ bindingFailMessage >> removeBindingRepl runtimeConfig
+        Just var -> removeBindingEval_ var runtimeConfig
+
+    promptUser prompt = putStr prompt >> read_
+
+removeBindingEval_ :: String -> RuntimeConfig -> IO (String, RuntimeConfig)
+removeBindingEval_ var runtimeConfig = do
+                                          let updatedConf = removeBinding var runtimeConfig
+                                          return (show updatedConf, updatedConf)
 
 read_ :: IO String
 read_ = hFlush stdout
@@ -188,24 +287,8 @@ eval_ ":analyze" runtimeConfig =  do
                                                             states = interpret graph runtimeConfig
 eval_ ":load" runtimeConfig = loadRepl runtimeConfig
 eval_ ":interval" runtimeConfig = intervalRepl runtimeConfig
-eval_ ":removeBinding" runtimeConfig = do
-                                          print_  "Which variable would you like to unbind?"
-                                          var <- putStr ">binding " >> read_
-                                          let updatedConf = removeBinding var runtimeConfig
-                                          return (show updatedConf, updatedConf)
-eval_ ":addBinding" runtimeConfig = do
-                                          print_  "Which variable would you like to bind?"
-                                          var <- putStr ">binding " >> read_
-                                          print_  "Lower bound (-inf, +inf for infinite bounds): "
-                                          lowerB <- putStr ">binding " >> read_
-                                          case parse infinitable ""  lowerB of
-                                            Left _ -> print_ "expecting integer or infinite \n" >> eval_ ":configuration" runtimeConfig
-                                            Right l -> do
-                                                          print_  "Upper bound (-inf, +inf for infinite bounds): "
-                                                          upperB <- putStr ">binding " >> read_
-                                                          case parse infinitable ""  upperB of
-                                                            Left _ -> print_ "expecting integer or infinite \n" >> eval_ ":configuration" runtimeConfig
-                                                            Right u -> addBindingEval_ var l u runtimeConfig
+eval_ ":removeBinding" runtimeConfig = removeBindingRepl runtimeConfig
+eval_ ":addBinding" runtimeConfig = addBindingRepl runtimeConfig
 eval_ input runtimeConfig = return ("Unknown command: " ++ input, runtimeConfig)
 
 print_ :: String -> IO ()
@@ -213,7 +296,6 @@ print_ = putStrLn
 
 repl :: RuntimeConfig -> IO ()
 repl runtimeConfig = do
-  print_ headerMessage
   input <- putStr "> " >> read_
   result <- eval_ input runtimeConfig
   unless (input == ":quit") $ print_ (fst result ++ "\n" ) >> repl (snd result)
