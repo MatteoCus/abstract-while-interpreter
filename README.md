@@ -175,7 +175,7 @@ Enable to refine over-approximations from widening. Applied after convergence.
 
 Example files should be placed in the `./examples/` directory. See the examples directory for sample While programs.
 
-### Simple Example (`examples/simple-loop.txt`)
+### Simple Loop Example (`examples/simple-loop.txt`)
 ```
 x := 0;
 
@@ -184,7 +184,7 @@ while x - 5 < 0 do
 done
 ```
 
-### Loop Example (`examples/relational-loop.txt`)
+### Relational Loop Example (`examples/relational-loop.txt`)
 ```
 y := 10;
 x := 0;
