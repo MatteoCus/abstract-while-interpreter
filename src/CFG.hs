@@ -14,7 +14,7 @@ buildCFG Skip graph _ = graph
 buildCFG (Assign var expr) (labels, entry, exit, arcs) label = do
     let (newLabels, newEntry, newExit, newArcs) = updateLabelsSingle (labels, entry, exit, arcs)
     let newArc = (label, CAssign var expr, newExit)
-    (newLabels, newEntry, newExit, newArc : newArcs)
+    (newLabels, newEntry, newExit, Set.insert newArc newArcs)
 
 buildCFG (Concat []) graph _ = graph
 
@@ -26,7 +26,7 @@ buildCFG (If comparison stm1 stm2) (labels, entry, exit, arcs) label = do
     let [elseLabel, thenLabel] = take 2 $ Set.toDescList newLabels  -- Get two largest labels
     let thenArc = (label, CGuard comparison, thenLabel)
     let elseArc = (label, CGuard (oppositeComparison comparison), elseLabel)
-    let thenGraphStart = (newLabels, newEntry, thenLabel, elseArc : thenArc : newArcs)
+    let thenGraphStart = (newLabels, newEntry, thenLabel, Set.insert elseArc (Set.insert thenArc newArcs))
     let (thenLabels, thenEntry, thenExit, thenArcs) = buildCFG stm1 thenGraphStart thenLabel
     let twoExitsGraph = buildCFG stm2 (thenLabels, thenEntry, elseLabel, thenArcs) elseLabel
     reconnectBranches twoExitsGraph thenExit
@@ -36,7 +36,7 @@ buildCFG (While comparison stm) (labels, entry, exit, arcs) label = do
     let [exitLabel, bodyLabel] = take 2 $ Set.toDescList newLabels  -- Get two largest labels
     let bodyArc = (label, CGuard comparison, bodyLabel)
     let exitArc = (label, CGuard (oppositeComparison comparison), exitLabel)
-    let bodyGraphStart = (newLabels, newEntry, bodyLabel, exitArc : bodyArc : newArcs)
+    let bodyGraphStart = (newLabels, newEntry, bodyLabel, Set.insert exitArc (Set.insert bodyArc newArcs))
     let openWhileGraph = buildCFG stm bodyGraphStart bodyLabel
     let (whileLabels, whileEntry, _, whileArcs) = reconnectBranches openWhileGraph exit
     (whileLabels, whileEntry, exitLabel, whileArcs)
@@ -66,42 +66,38 @@ updateLabelsDouble (labels, entry, _, arcs) oldLabel = do
 reconnectBranches :: Graph -> Label -> Graph
 reconnectBranches (elseLabels, elseEntry, elseExit, elseArcs) thenExit = do
     let newLabels = Set.delete elseExit elseLabels
-    let foundArcsToUpdate = filter (\(_,_,exitLab) -> exitLab == elseExit) elseArcs
-    let updatedArcs = arcUpdate foundArcsToUpdate thenExit
-    let newArcs = filter (\(_,_,exitLab) -> exitLab /= elseExit) elseArcs
-    (newLabels, elseEntry, thenExit, updatedArcs ++ newArcs)
-
-arcUpdate :: [Arc] -> Label -> [Arc]
-arcUpdate [] _ = []
-arcUpdate (x : xs) newExit = arcUpdate' x newExit : arcUpdate xs newExit
+    let foundArcsToUpdate = Set.filter (\(_,_,exitLab) -> exitLab == elseExit) elseArcs
+    let updatedArcs = Set.map (\arc -> arcUpdate' arc thenExit) foundArcsToUpdate
+    let newArcs = Set.filter (\(_,_,exitLab) -> exitLab /= elseExit) elseArcs
+    (newLabels, elseEntry, thenExit, Set.union updatedArcs newArcs)
 
 arcUpdate' :: Arc -> Label -> Arc
 arcUpdate' (oldElseEntryLab, oldCommand, _) newExit = (oldElseEntryLab, oldCommand, newExit)
 
 findLoopLabels :: Graph -> Set Label -> Set Label -> Set Label
-findLoopLabels (_, _, _, []) _ _ = Set.empty
+findLoopLabels (_, _, _, arcs) _ _ | Set.null arcs = Set.empty
 findLoopLabels (labels, en, ex, arcs) foundLabels alreadyExamined
     | Set.null labels = Set.empty
     | en `Set.member` foundLabels = foundLabels
     | en `Set.member` alreadyExamined = foundLabels
     | labels == alreadyExamined = foundLabels
     | otherwise = 
-        let nextLabels = Set.fromList $ map (\(_,_,t) -> t) $ filter (\(entry,_,_) -> entry == en) arcs
+        let nextLabels = Set.fromList $ map (\(_,_,t) -> t) $ Set.toList $ Set.filter (\(entry,_,_) -> entry == en) arcs
             hasLoop = any (findLoopLabels' arcs alreadyExamined en) (Set.toList nextLabels)
             newFound = if hasLoop then Set.insert en foundLabels else foundLabels
             newExamined = Set.insert en alreadyExamined
         in Set.unions $ map (\x -> findLoopLabels (labels, x, ex, arcs) newFound newExamined) (Set.toList nextLabels)
 
 
-findLoopLabels' :: [Arc] -> Set Label -> Label -> Label -> Bool
-findLoopLabels' [] _ _ _ = False
+findLoopLabels' :: Set Arc -> Set Label -> Label -> Label -> Bool
+findLoopLabels' arcs _ _ _ | Set.null arcs = False
 findLoopLabels' arcs alreadyExploredLabels toFindLabel actualLabel
     | actualLabel `Set.member` alreadyExploredLabels = False
     | actualLabel == toFindLabel = True
     | otherwise = 
-        let nextArcs = filter (\(en,_, _) -> en == actualLabel) arcs
+        let nextArcs = Set.filter (\(en,_, _) -> en == actualLabel) arcs
             newExplored = Set.insert actualLabel alreadyExploredLabels
-        in any (findLoopLabels' arcs newExplored toFindLabel . (\(_,_,t) -> t)) nextArcs
+        in any (findLoopLabels' arcs newExplored toFindLabel . (\(_,_,t) -> t)) (Set.toList nextArcs)
 
 normalize :: Graph -> Graph 
 normalize graph@(labels,_,_,_) = do
@@ -119,7 +115,7 @@ normalize' (x : xs) graph@(labels, _, _, _) = if x `Set.member` labels
 updateMissingLabel :: Int -> Graph -> Graph
 updateMissingLabel missingLabel (labels, entry,exit, arcs) = do
     let newLabels = Set.map (\label -> if label > missingLabel then label-1 else label ) labels
-    let newArcs = Prelude.map (\(en,c,ex) -> case (en > missingLabel, ex > missingLabel)
+    let newArcs = Set.map (\(en,c,ex) -> case (en > missingLabel, ex > missingLabel)
                                              of (True, True) -> (en-1,c,ex-1) 
                                                 (True, False) -> (en-1,c,ex)
                                                 (False, True) -> (en,c,ex-1)

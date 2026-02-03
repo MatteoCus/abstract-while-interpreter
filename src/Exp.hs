@@ -11,7 +11,7 @@ data AExp = Var String
                 | Sub AExp AExp
                 | Mul AExp AExp
                 | Div AExp AExp
-            deriving (Show)
+            deriving (Show, Eq, Ord)
 
 data Comparison =   Equal AExp AExp
                     | Smaller AExp AExp
@@ -19,7 +19,7 @@ data Comparison =   Equal AExp AExp
                     | Greater AExp AExp
                     | GreaterOrEqual AExp AExp
                     | Different AExp AExp
-                deriving (Show)
+                deriving (Show, Eq, Ord)
 
 oppositeComparison :: Comparison -> Comparison
 oppositeComparison (Equal exp1 exp2) = Different exp1 exp2

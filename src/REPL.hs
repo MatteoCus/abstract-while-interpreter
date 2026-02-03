@@ -172,7 +172,7 @@ addBindingRepl runtimeConfig = do
         handleSelection freeVar selected
 
     getArcs ast = 
-      let (_, _, _, arcs) = buildCFG ast (Set.empty, 0, 0, []) 0
+      let (_, _, _, arcs) = buildCFG ast (Set.empty, 0, 0, Set.empty) 0
       in arcs
 
     extractFreeVariables = toList . foldr (Set.union . (\(_, cm, _) -> freeVariablesCom cm)) Set.empty
@@ -276,14 +276,14 @@ eval_ ":cfg" runtimeConfig =  do
                                 case result
                                   of  Left e -> return ("Parsing error: " ++ e, runtimeConfig)
                                       Right ast -> return (prettyPrintCFG graph, runtimeConfig)
-                                                   where graph = buildCFG ast (Set.empty, 0, 0, []) 0
+                                                   where graph = buildCFG ast (Set.empty, 0, 0, Set.empty) 0
 
 eval_ ":analyze" runtimeConfig =  do
                                     result <- parseFile runtimeConfig
                                     case result
                                       of  Left e -> return ("Parsing error: " ++ e, runtimeConfig)
                                           Right ast -> return (prettyPrintStates states, runtimeConfig)
-                                                      where graph = buildCFG ast (Set.empty, 0, 0, []) 0
+                                                      where graph = buildCFG ast (Set.empty, 0, 0, Set.empty) 0
                                                             states = interpret graph runtimeConfig
 eval_ ":load" runtimeConfig = loadRepl runtimeConfig
 eval_ ":interval" runtimeConfig = intervalRepl runtimeConfig

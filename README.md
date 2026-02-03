@@ -2,6 +2,8 @@
 
 A static analysis tool that performs abstract interpretation on While language programs using the interval domain. This tool analyzes programs to determine possible values of variables at each program point without executing the code.
 
+This project was developed as the final assignment for the Software Verification course taught by Prof. Francesco Ranzato at the University of Padua, A.Y. 2025/2026, Computer Science Master's Degree program.
+
 ## Overview
 
 This project implements an abstract interpreter that:

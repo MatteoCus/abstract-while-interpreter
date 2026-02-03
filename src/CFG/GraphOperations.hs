@@ -4,11 +4,11 @@ import qualified Data.Set as Set
 import Exp (Comparison(..), freeVariablesExp)
 import Data.Set (Set)
 
-arcsTo :: Label -> [Arc] -> [Arc]
-arcsTo exitLabel = filter (\(_,_,exit) -> exit == exitLabel)
+arcsTo :: Label -> Set Arc -> Set Arc
+arcsTo exitLabel = Set.filter (\(_,_,exit) -> exit == exitLabel)
 
-arcsFrom :: Label -> [Arc]  -> [Arc]
-arcsFrom entryLabel = filter (\(entry,_,_) -> entry == entryLabel)
+arcsFrom :: Label -> Set Arc -> Set Arc
+arcsFrom entryLabel = Set.filter (\(entry,_,_) -> entry == entryLabel)
 
 freeVariablesCom :: Command -> Set String
 freeVariablesCom (CAssign x expr) = Set.singleton x `Set.union`freeVariablesExp expr

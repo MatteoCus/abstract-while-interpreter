@@ -79,7 +79,7 @@ prettyPrintCFG (labels, entry, exit, arcs) =
     "  Exit:  " ++ show exit ++ "\n" ++
     "  Labels: " ++ show (Set.toList labels) ++ "\n" ++
     "  Arcs:\n" ++
-    unlines (map (("    " ++) . prettyArc) (sortOn (\(f,_,_) -> f) arcs))
+    unlines (map (("    " ++) . prettyArc) (sortOn (\(f,_,_) -> f) (Set.toList arcs)))
 
 -- | Pretty print CFG as a graph visualization (DOT format)
 prettyPrintGraph :: Graph -> String

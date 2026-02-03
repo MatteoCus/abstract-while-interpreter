@@ -120,8 +120,8 @@ interpret graph@(labels, _, _, _) runtimeConfig
             then narrowing graph loopInvariantLabels (interpret' graph loopInvariantLabels startConfiguration runtimeConfig) runtimeConfig
             else interpret' graph loopInvariantLabels startConfiguration runtimeConfig
 
-buildEntryDefaultConfiguration :: [Arc] -> State
-buildEntryDefaultConfiguration arcs = Right $ fromSet (\_ -> Interval NegativeInfinity PositiveInfinity) (foldr (Set.union . (\(_,cm,_) -> freeVariablesCom cm)) Set.empty arcs)
+buildEntryDefaultConfiguration :: Set Arc -> State
+buildEntryDefaultConfiguration arcs = Right $ fromSet (\_ -> Interval NegativeInfinity PositiveInfinity) (Set.foldr (Set.union . (\(_,cm,_) -> freeVariablesCom cm)) Set.empty arcs)
 
 interpret' :: Graph -> Set Label -> Map.Map Label State -> RuntimeConfig -> Map.Map Label State
 interpret' graph@(labels, entry, _, arcs) wideningLabels actualConfiguration runtimeConfig = do
@@ -141,14 +141,14 @@ narrowing graph@(labels, entry, _, arcs) narrowingLabels actualConfiguration run
         then actualConfiguration
         else narrowing graph narrowingLabels newConfiguration runtimeConfig
 
-refineWith :: (State -> State -> State) -> Label -> Label -> [Arc] -> Set Label -> Map.Map Label State -> Bool -> RuntimeConfig -> State
+refineWith :: (State -> State -> State) -> Label -> Label -> Set Arc -> Set Label -> Map.Map Label State -> Bool -> RuntimeConfig -> State
 refineWith refinementAlg actualLabel entryLabel arcs wideningLabels actualConfiguration shoulAlgBeExecuted runtimeConfig = do
     let entryArcs = arcsTo actualLabel arcs
     let associatedPreviousStates = map (\(en,_,_) ->
             case Map.lookup en actualConfiguration of
                 Nothing -> Left SmashedBottom
-                Just state -> state) entryArcs
-    let zippedStateCommands = zip (map (\(_,cm,_) -> cm) entryArcs) associatedPreviousStates
+                Just state -> state) (Set.toList entryArcs)
+    let zippedStateCommands = zip (map (\(_,cm,_) -> cm) (Set.toList entryArcs)) associatedPreviousStates
     let calculatedStates_ = map (uncurry (interpretCommand runtimeConfig)) zippedStateCommands
     let currentState = Map.lookup actualLabel actualConfiguration
     let calculatedStates = if actualLabel == entryLabel && not (null calculatedStates_)
