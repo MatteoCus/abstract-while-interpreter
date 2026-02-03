@@ -47,8 +47,8 @@ updateLabelsSingle :: Graph -> Graph
 updateLabelsSingle (labels, entry, _, arcs) = do
     let maxLabel = if Set.null labels then 0 else Set.findMax labels
     let newLabel = maxLabel + 1
-    let newLabels = if Set.null labels 
-                    then Set.fromList [newLabel, maxLabel] 
+    let newLabels = if Set.null labels
+                    then Set.fromList [newLabel, maxLabel]
                     else Set.insert newLabel labels
     (newLabels, entry, newLabel, arcs)
 
@@ -58,8 +58,8 @@ updateLabelsDouble (labels, entry, _, arcs) oldLabel = do
     let maxLabel = if Set.null labels then 0 else Set.findMax labels
     let newLabel1 = maxLabel + 1
     let newLabel2 = maxLabel + 2
-    let newLabels = if Set.null labels 
-                    then Set.fromList [newLabel2, newLabel1, oldLabel] 
+    let newLabels = if Set.null labels
+                    then Set.fromList [newLabel2, newLabel1, oldLabel]
                     else Set.insert newLabel2 (Set.insert newLabel1 labels)
     (newLabels, entry, oldLabel, arcs)
 
@@ -67,12 +67,12 @@ reconnectBranches :: Graph -> Label -> Graph
 reconnectBranches (elseLabels, elseEntry, elseExit, elseArcs) thenExit = do
     let newLabels = Set.delete elseExit elseLabels
     let foundArcsToUpdate = Set.filter (\(_,_,exitLab) -> exitLab == elseExit) elseArcs
-    let updatedArcs = Set.map (\arc -> arcUpdate' arc thenExit) foundArcsToUpdate
+    let updatedArcs = Set.map (`arcUpdate` thenExit) foundArcsToUpdate
     let newArcs = Set.filter (\(_,_,exitLab) -> exitLab /= elseExit) elseArcs
     (newLabels, elseEntry, thenExit, Set.union updatedArcs newArcs)
 
-arcUpdate' :: Arc -> Label -> Arc
-arcUpdate' (oldElseEntryLab, oldCommand, _) newExit = (oldElseEntryLab, oldCommand, newExit)
+arcUpdate :: Arc -> Label -> Arc
+arcUpdate (oldElseEntryLab, oldCommand, _) newExit = (oldElseEntryLab, oldCommand, newExit)
 
 findLoopLabels :: Graph -> Set Label -> Set Label -> Set Label
 findLoopLabels (_, _, _, arcs) _ _ | Set.null arcs = Set.empty
@@ -81,7 +81,7 @@ findLoopLabels (labels, en, ex, arcs) foundLabels alreadyExamined
     | en `Set.member` foundLabels = foundLabels
     | en `Set.member` alreadyExamined = foundLabels
     | labels == alreadyExamined = foundLabels
-    | otherwise = 
+    | otherwise =
         let nextLabels = Set.fromList $ map (\(_,_,t) -> t) $ Set.toList $ Set.filter (\(entry,_,_) -> entry == en) arcs
             hasLoop = any (findLoopLabels' arcs alreadyExamined en) (Set.toList nextLabels)
             newFound = if hasLoop then Set.insert en foundLabels else foundLabels
@@ -94,19 +94,19 @@ findLoopLabels' arcs _ _ _ | Set.null arcs = False
 findLoopLabels' arcs alreadyExploredLabels toFindLabel actualLabel
     | actualLabel `Set.member` alreadyExploredLabels = False
     | actualLabel == toFindLabel = True
-    | otherwise = 
+    | otherwise =
         let nextArcs = Set.filter (\(en,_, _) -> en == actualLabel) arcs
             newExplored = Set.insert actualLabel alreadyExploredLabels
         in any (findLoopLabels' arcs newExplored toFindLabel . (\(_,_,t) -> t)) (Set.toList nextArcs)
 
-normalize :: Graph -> Graph 
+normalize :: Graph -> Graph
 normalize graph@(labels,_,_,_) = do
     let maxim =  Set.lookupMax labels
     case maxim
         of  Nothing -> graph
             (Just mx) -> normalize' [0..mx] graph
 
-normalize' :: [Int] -> Graph -> Graph 
+normalize' :: [Int] -> Graph -> Graph
 normalize' [] graph = graph
 normalize' (x : xs) graph@(labels, _, _, _) = if x `Set.member` labels
                                                  then normalize' xs graph
@@ -116,7 +116,7 @@ updateMissingLabel :: Int -> Graph -> Graph
 updateMissingLabel missingLabel (labels, entry,exit, arcs) = do
     let newLabels = Set.map (\label -> if label > missingLabel then label-1 else label ) labels
     let newArcs = Set.map (\(en,c,ex) -> case (en > missingLabel, ex > missingLabel)
-                                             of (True, True) -> (en-1,c,ex-1) 
+                                             of (True, True) -> (en-1,c,ex-1)
                                                 (True, False) -> (en-1,c,ex)
                                                 (False, True) -> (en,c,ex-1)
                                                 (False, False) -> (en,c,ex)) arcs
