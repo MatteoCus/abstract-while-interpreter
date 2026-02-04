@@ -25,14 +25,18 @@ PositiveInfinity `divide` (Regular x)
 (Regular x) `divide` (Regular y) = Regular (x `div` y)
 
 instance Ord Interval where
+    (<=) :: Interval -> Interval -> Bool
     Empty <= _ = True
     _ <= Empty = False
     (Interval x y) <= (Interval x' y') = x' <= x && y <= y'
 
 instance AbstractDomain Interval where
+    (⊥) :: Interval
     (⊥) = Empty
+    (⊤) :: Interval
     (⊤) = Interval NegativeInfinity PositiveInfinity
 
+    lub :: Interval -> Interval -> RuntimeConfig -> Interval
     lub Empty Empty _ = (⊥)
     lub Empty  interval _ =  interval
     lub interval Empty _ =  interval
@@ -53,6 +57,7 @@ instance AbstractDomain Interval where
                                                                 where newMin = min mnm1 mnm2
                                                                       newMax = max mxm1 mxm2
 
+    glb :: Interval -> Interval -> RuntimeConfig -> Interval
     glb Empty Empty _ = (⊤)
     glb Empty _ _ = (⊥)
     glb _ Empty _ = (⊥)
@@ -76,23 +81,28 @@ instance AbstractDomain Interval where
                                                                     newMax = min mxm1 mxm2
 
 
+    (+) :: Interval -> Interval -> Interval
     Empty + _ = Empty
     _ + Empty = Empty
     (Interval mnm1 mxm1) + (Interval mnm2 mxm2) = Interval (mnm1 Prelude.+ mnm2) (mxm1 Prelude.+ mxm2)
 
+    neg :: Interval -> Interval
     neg Empty = Empty
     neg (Interval mnm mxm) = Interval (-mxm) (-mnm)
 
+    (-) :: Interval -> Interval -> Interval
     Empty - _ = Empty
     _ - Empty = Empty
     (Interval mnm1 mxm1) - (Interval mnm2 mxm2) = Interval (mnm1 Prelude.- mxm2) (mxm1 Prelude.- mnm2)
 
+    (*) :: Interval -> Interval -> Interval
     Empty * _ = Empty
     _ * Empty = Empty
     (Interval mnm1 mxm1) * (Interval mnm2 mxm2) = Interval minim maxim
         where minim = min (min (min (mnm1 Prelude.* mnm2) (mnm1 Prelude.* mxm2)) (mxm1 Prelude.* mnm2)) (mxm1 Prelude.* mxm2)
               maxim = max (max (max (mnm1 Prelude.* mnm2) (mnm1 Prelude.* mxm2)) (mxm1 Prelude.* mnm2)) (mxm1 Prelude.* mxm2)
 
+    (/) :: Interval -> Interval -> RuntimeConfig -> Interval
     (/) Empty _ _= Empty
     (/) _ Empty _ = Empty
     (/) (Interval mnm1 mxm1)  (Interval mnm2 mxm2) config
@@ -100,6 +110,7 @@ instance AbstractDomain Interval where
         | mxm2 <= -1 = Interval (min (mxm1 `divide` mnm2) (mxm1 `divide` mxm2)) (max (mnm1 `divide` mnm2) (mnm1 `divide` mxm2))
         | otherwise = lub ((AbstractDomain./) (Interval mnm1 mxm1)  (glb (Interval mnm2 mxm2) (Interval (Regular 1) PositiveInfinity) config) config)  ((AbstractDomain./) (Interval mnm1 mxm1)  (glb (Interval mnm2 mxm2) (Interval NegativeInfinity (Regular (-1))) config ) config) config
 
+    (∇) :: Interval -> Interval -> Interval
     Empty ∇ interv = interv
     interv ∇ Empty = interv
     (Interval a b) ∇ (Interval c d) = Interval widenedLower widenedUpper
@@ -112,6 +123,7 @@ instance AbstractDomain Interval where
                                                 | 0 >= d && d > b = 0
                                                 | otherwise = PositiveInfinity
 
+    (△) :: Interval -> Interval -> Interval
     Empty △ _ = Empty
     _ △ Empty = Empty
     (Interval a b) △ (Interval c d) = Interval narrowedLower narrowedUpper
