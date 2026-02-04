@@ -103,8 +103,14 @@ instance AbstractDomain Interval where
     Empty ∇ interv = interv
     interv ∇ Empty = interv
     (Interval a b) ∇ (Interval c d) = Interval widenedLower widenedUpper
-                                        where widenedLower = if a <= c then a else NegativeInfinity
-                                              widenedUpper = if b >= d then b else PositiveInfinity
+                                        where widenedLower
+                                                | a <= c = a
+                                                | 0 <= c && c < a = 0
+                                                | otherwise = NegativeInfinity
+                                              widenedUpper
+                                                | b >= d = b
+                                                | 0 >= d && d > b = 0
+                                                | otherwise = PositiveInfinity
 
     Empty △ _ = Empty
     _ △ Empty = Empty
