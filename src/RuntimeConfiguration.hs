@@ -11,11 +11,13 @@ data RuntimeConfig = RuntimeConfig {
     fileToAnalyze :: String,
     intervalBounds :: (Infinitable Integer, Infinitable Integer),
     enableWidening :: Bool,
-    enableNarrowing :: Bool
+    enableNarrowing :: Bool,
+    descendingSteps :: Int
 }
 
 instance Show RuntimeConfig where
     show configuration = do
+                        let steps = "\n Descending steps: " ++ show (descendingSteps configuration) 
                         let file = "\n- File: " ++ fileToAnalyze configuration
                         let widening = "\n- Widening: " ++ if enableWidening configuration then "ON" else "OFF"
                         let narrowing = "\n- Narrowing: " ++ if enableNarrowing configuration then "ON" else "OFF"
@@ -25,7 +27,7 @@ instance Show RuntimeConfig where
                                                                 (NegativeInfinity, Regular u ) -> "(" ++ show NegativeInfinity ++ "," ++ show u ++ "]"
                                                                 (NegativeInfinity, PositiveInfinity ) -> "(" ++ show NegativeInfinity ++ "," ++ show PositiveInfinity ++ ")"
                                                                 (l, u ) -> "[" ++ show l ++ "," ++ show u ++ "]"
-                        interval ++ widening ++ narrowing ++ startConf ++ file
+                        interval ++ widening ++ narrowing ++ startConf ++ file ++ steps
 
 toggleWidening :: RuntimeConfig -> RuntimeConfig
 toggleWidening config = config {enableWidening = not (enableWidening config)}

@@ -135,11 +135,12 @@ interpret' graph@(labels, entry, _, arcs) wideningLabels actualConfiguration run
 narrowing :: Graph -> Set Label -> Map.Map Label State -> RuntimeConfig -> Map.Map Label State
 narrowing graph@(labels, entry, _, arcs) narrowingLabels actualConfiguration runtimeConfig = do
     let labelList = Set.toList labels
-    let newStates = map (\label -> refineWith stateNarrowing label entry arcs narrowingLabels actualConfiguration (enableNarrowing runtimeConfig) runtimeConfig) labelList
+    let newStates = map (\label -> refineWith (stateNarrowing runtimeConfig) label entry arcs narrowingLabels actualConfiguration (enableNarrowing runtimeConfig) runtimeConfig) labelList
     let newConfiguration = Map.fromList $ zip labelList newStates
+    let updatedRuntimeConfiguration = runtimeConfig {descendingSteps = descendingSteps runtimeConfig Prelude.- 1}
     if actualConfiguration == newConfiguration
         then actualConfiguration
-        else narrowing graph narrowingLabels newConfiguration runtimeConfig
+        else narrowing graph narrowingLabels newConfiguration updatedRuntimeConfiguration
 
 refineWith :: (State -> State -> State) -> Label -> Label -> Set Arc -> Set Label -> Map.Map Label State -> Bool -> RuntimeConfig -> State
 refineWith refinementAlg actualLabel entryLabel arcs wideningLabels actualConfiguration shoulAlgBeExecuted runtimeConfig = do

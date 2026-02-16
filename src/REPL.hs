@@ -23,7 +23,7 @@ xs !? n
 
 
 config :: RuntimeConfig
-config = RuntimeConfig {startingConfiguration = Right Map.empty, fileToAnalyze = baseExampleDirectory ++ "simple-loop.txt", intervalBounds = (NegativeInfinity, PositiveInfinity), enableWidening = False, enableNarrowing = False}
+config = RuntimeConfig {startingConfiguration = Right Map.empty, fileToAnalyze = baseExampleDirectory ++ "simple-loop.txt", intervalBounds = (NegativeInfinity, PositiveInfinity), enableWidening = False, enableNarrowing = False, descendingSteps = 5}
 
 headerMessage :: String
 headerMessage = "Welcome to the abstract interpreter for While language! \
