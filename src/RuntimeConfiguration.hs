@@ -17,7 +17,7 @@ data RuntimeConfig = RuntimeConfig {
 
 instance Show RuntimeConfig where
     show configuration = do
-                        let steps = "\n Descending steps: " ++ show (descendingSteps configuration) 
+                        let steps = "\n- Descending steps: " ++ show (descendingSteps configuration) 
                         let file = "\n- File: " ++ fileToAnalyze configuration
                         let widening = "\n- Widening: " ++ if enableWidening configuration then "ON" else "OFF"
                         let narrowing = "\n- Narrowing: " ++ if enableNarrowing configuration then "ON" else "OFF"
